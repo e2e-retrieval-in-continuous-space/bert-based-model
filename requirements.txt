@@ -1,0 +1,6 @@
+boto3==1.14.62
+regex==2020.10.15
+requests==2.24.0
+sacremoses==0.0.43
+sentencepiece==0.1.91
+tqdm==4.50.2
