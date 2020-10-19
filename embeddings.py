@@ -4,9 +4,9 @@ from typing import List, Callable
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 
 
-class Model(enum.Enum):
+class BERTVersion(enum.Enum):
     """
-    Enum representing supported models
+    Enum representing supported BERT versions
     """
     BERT_BASE_UNCASED = 'bert-base-uncased'
 
@@ -18,7 +18,7 @@ class BERTWrapper(object):
     :param model_name: The name of specific model to use (Use `Model` enum)
     """
 
-    def __init__(self, model_name: Model):
+    def __init__(self, model_name: BERTVersion):
         self.model_name = model_name.value
         self.config = AutoConfig.from_pretrained(self.model_name, output_hidden_states=True, return_dict=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, config=self.config)

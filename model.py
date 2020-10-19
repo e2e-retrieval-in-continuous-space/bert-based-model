@@ -1,6 +1,6 @@
-from embeddings import BERTWrapper, Model, average_layers_and_tokens, embeddings_factory
+from embeddings import BERTWrapper, BERTVersion, average_layers_and_tokens, embeddings_factory
 
-bert = BERTWrapper(Model.BERT_BASE_UNCASED)
+bert = BERTWrapper(BERTVersion.BERT_BASE_UNCASED)
 create_embeddings = embeddings_factory(bert, average_layers_and_tokens)
 
 embeddings = create_embeddings([
@@ -11,4 +11,3 @@ embeddings = create_embeddings([
 ])
 
 print(embeddings.shape)
-
