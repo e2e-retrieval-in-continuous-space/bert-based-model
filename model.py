@@ -1,5 +1,5 @@
 from embeddings.bert import BERTWrapper, BERTVersion, average_layers_and_tokens, bert_embeddings_factory
-from embeddings.random import compute_random_embeddings
+from embeddings.baselines import compute_random_embeddings, compute_tfidf_features
 
 bert = BERTWrapper(BERTVersion.BERT_BASE_UNCASED)
 compute_bert_embeddings = bert_embeddings_factory(bert, average_layers_and_tokens)
@@ -11,5 +11,6 @@ sentences = [
     "This sequence of hidden states for the whole input sequence to summarize the semantic content of the input."
 ]
 
+print(type(compute_tfidf_features(sentences)))
 print(compute_bert_embeddings(sentences))
 print(compute_random_embeddings(sentences))
