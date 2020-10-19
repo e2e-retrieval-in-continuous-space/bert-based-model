@@ -1,7 +1,7 @@
-from embeddings import BERTWrapper, BERTVersion, average_layers_and_tokens, embeddings_factory
+from bert_embeddings import BERTWrapper, BERTVersion, average_layers_and_tokens, bert_embeddings_factory
 
 bert = BERTWrapper(BERTVersion.BERT_BASE_UNCASED)
-compute_bert_embeddings = embeddings_factory(bert, average_layers_and_tokens)
+compute_bert_embeddings = bert_embeddings_factory(bert, average_layers_and_tokens)
 
 bert_embeddings = compute_bert_embeddings([
     "We plan to apply the feature-based approach with BERT (Devlin et al. 2018) ",

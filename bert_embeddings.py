@@ -44,7 +44,7 @@ def average_axis(axis: int, tensor: torch.Tensor) -> torch.Tensor:
     return tensor.sum(axis) / tensor.shape[axis]
 
 
-def embeddings_factory(bert: BERTWrapper, reducer: Callable[[torch.Tensor], torch.Tensor]) -> Callable[
+def bert_embeddings_factory(bert: BERTWrapper, reducer: Callable[[torch.Tensor], torch.Tensor]) -> Callable[
     [List[str]], torch.Tensor
 ]:
     def create_embeddings(sentences: List[str]) -> torch.Tensor:
