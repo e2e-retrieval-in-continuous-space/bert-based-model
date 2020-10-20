@@ -31,22 +31,22 @@ class QuoraDataset:
         # Only use pos_examples because negative sampling would be used
         test_examples, train_examples = split_examples(pos_examples, split_fracs, seed=seed)
 
-        test_data = generate_data(test_examples, reachable)
+        test_data_qid = generate_data(test_examples, reachable)
 
         # Each element in a positive pair is considered a test query
-        test_qid_set = set(flatmap(test_data))
+        test_qid_set = set(flatmap(test_data_qid))
 
         # Filter out training examples that have qid appearing in test_query
         train_examples = [e for e in train_examples
                           if e.qid1 not in test_qid_set or e.qid2 not in test_qid_set]
 
-        train_data = generate_data(train_examples, reachable)
+        train_data_qid = generate_data(train_examples, reachable)
 
         self._qid2text = qid2text
         self._examples = examples
         self._reachable = reachable
-        self._test_data = test_data
-        self._train_data = train_data
+        self._test_data_qid = test_data_qid
+        self._train_data_qid = train_data_qid
 
     def get_examples(self):
         return self._examples
@@ -58,10 +58,20 @@ class QuoraDataset:
         return self._qid2text.get(qid, None)
 
     def get_train_data(self):
-        return self._train_data
+        """
+        Returns:
+             A list of tuples of positive pair of questions (question_text1, question_text2)
+        """
+        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+                for qid1, qid2 in self._train_data_qid]
 
     def get_test_data(self):
-        return self._test_data
+        """
+        Returns:
+             A list of tuples of positive pair of questions (question_text1, question_text2)
+        """
+        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+                for qid1, qid2 in self._test_data_qid]
 
     @staticmethod
     def read_examples(src_filename):
@@ -92,5 +102,5 @@ class QuoraDataset:
 if __name__ == "__main__":
     quora = QuoraDataset("quora_duplicate_questions.tsv")
     test_data = quora.get_test_data()
-    print(test_data)
+    print(test_data[:10])
 
