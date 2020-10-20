@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 from torch import optim
-import numpy as np
-from typing import List, Tuple
 import torch.nn.functional as F
 from data_utils import flatmap
+import numpy as np
+from typing import List, Tuple
 
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
@@ -207,7 +207,5 @@ def fit(epochs,
 
     print("Epoch {}: val_loss={}".format(epoch, val_loss))
 
-
 if __name__ == "__main__":
     pass
-
