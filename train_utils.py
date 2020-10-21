@@ -1,12 +1,34 @@
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 from typing import List, Tuple
+import torch.nn.functional as F
 
 
-def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, similarity_func):
+def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
+    """
+    Squared Euclidean is proportional to the cosine distance.
+    TODO:  Perhaps we can do away the squaring if that doesn't change the ranking of docs.
+
+    https://stats.stackexchange.com/questions/146221/is-cosine-similarity-identical-to-l2-normalized-euclidean-distance/146279#146279
+    https://en.wikipedia.org/wiki/Cosine_similarity#Properties
+
+    Args:
+         q1_batch_embedding:
+            Shape (batch_size, embedding_size)
+         q2_batch_embedding:
+            Shape (batch_size, embedding_size)
+    Returns:
+         all pairs simliarity matrix (batch_size, batch_size)
+    """
+    q1_norm = F.normalize(q1_batch_embedding, dim=1, p=2)
+    q2_norm = F.normalize(q2_batch_embedding, dim=1, p=2)
+    pairiwse_l2_dist = torch.cdist(q1_norm, q2_norm, p=2)
+    return torch.square(pairiwse_l2_dist)
+
+
+def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, pairwise_similarity_func):
     """
     Apply similarity_function to all pairs of questions between q1_batch_embedding and q2_batch_embedding
     to form similarity matrix M where the diagonal contains positive examples and the off-diagonal contains
@@ -20,7 +42,10 @@ def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, similarity_
          q2_batch_embedding:
             Shape (batch_size, embedding_size)
     """
-    pass
+    similarity_matrix = pairwise_similarity_func(q1_batch_embedding, q2_batch_embedding)
+    neg_log_softmax = torch.neg((F.log_softmax(similarity_matrix, dim=1)))
+    loss_terms = torch.diagonal(neg_log_softmax, 0)
+    return np.mean(loss_terms)
 
 
 def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func, opt=None):
@@ -45,8 +70,8 @@ def fit(epochs,
         opt: optim.Optimizer,
         train_data: List[Tuple[str, str]],
         val_data: List[Tuple[str, str]],
-        batch_size = 1000
-        ):
+        pairwise_similarity_func=pairwise_cosine_similarity,
+        batch_size = 1000):
     """
     Args:
         model:
@@ -59,14 +84,22 @@ def fit(epochs,
             A list of tuples of positive pair of questions (question_text1, question_text2)
     """
     for epoch in range(epochs):
+        model.train()
+
         for q1_batch, q2_batch in iterate_batch(train_data, batch_size):
-            loss_batch(model, loss_func, q1_batch, q2_batch, opt)
+            loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
 
         model.eval()
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, loss_func, xb, yb) for xb, yb in iterate_batch(val_data, batch_size)]
+                *[loss_batch(model, loss_func, xb, yb, pairwise_similarity_func)
+                  for xb, yb in iterate_batch(val_data, batch_size)]
             )
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
     print("Epoch {}: val_loss={}".format(epoch, val_loss))
+
+
+if __name__ == "__main__":
+    pass
+
