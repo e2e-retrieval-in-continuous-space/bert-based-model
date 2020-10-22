@@ -51,8 +51,12 @@ class QuoraDataset:
     def get_examples(self):
         return self._examples
 
-    def get_query_result(self, query):
-        return self._reachable.get(query, [])
+    def get_relevant_result(self, queries: List[str]):
+        """
+        Returns: List[Tuple[str, set(id)]]
+            List of (query, List(candidate IDs))
+        """
+        return [self._reachable.get(q, set()) for q in queries]
 
     def get_text_for_qid(self, qid):
         return self._qid2text.get(qid, None)
