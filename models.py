@@ -23,23 +23,21 @@ def average_axis(axis: int, tensor: Tensor) -> Tensor:
 class BERTAsFeatureExtractorEncoder(nn.Module):
     def __init__(
         self,
-        compute_embeddings: Callable[[List[str]], Tensor],
-        embeddings_size: int,
-        hidden_size: int,
         bert_version: BERTVersion,
+        hidden_size: int = None,
         bert_reducer: Callable[[Tensor], Tensor] = average_layers_and_tokens
     ):
         super().__init__()
 
-        self.compute_embeddings = compute_embeddings
-        self.embeddings_dim = embeddings_size
-        self.linear = nn.Linear(self.embeddings_dim, hidden_size)
-
-        self.bert_version = bert_version
+        self.bert_version = bert_version.value
         self.bert_reducer = bert_reducer
         self.config = AutoConfig.from_pretrained(self.bert_version, output_hidden_states=True, return_dict=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.bert_version, config=self.config)
         self.bert = AutoModel.from_pretrained(self.bert_version, config=self.config)
+        self.embeddings_dim = self.config.hidden_size
+        self.hidden_size = hidden_size or self.embeddings_dim * 2
+
+        self.linear = nn.Linear(self.embeddings_dim, self.hidden_size)
 
     def forward(self, documents: List[str]):
         inputs = self.tokenizer(documents, return_tensors="pt", padding=True, truncation=True)
