@@ -207,5 +207,6 @@ def fit(epochs,
 
     print("Epoch {}: val_loss={}".format(epoch, val_loss))
 
+
 if __name__ == "__main__":
     pass
