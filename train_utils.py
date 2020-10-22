@@ -4,7 +4,7 @@ from torch import optim
 import torch.nn.functional as F
 from data_utils import flatmap
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Generator
 
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
@@ -42,11 +42,16 @@ def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, pairwise_si
             Shape (batch_size, embedding_size)
          q2_batch_embedding:
             Shape (batch_size, embedding_size)
+
+    >>> from torch import Tensor
+    >>> similarity = lambda a, b: Tensor([[1, 0.5], [0.5, 1]])
+    >>> in_batch_sampled_softmax([(1, 2),(3, 4)], [(1, 2),(3, 4)], similarity)
+    tensor(0.4741)
     """
     similarity_matrix = pairwise_similarity_func(q1_batch_embedding, q2_batch_embedding)
     neg_log_softmax = torch.neg((F.log_softmax(similarity_matrix, dim=1)))
     loss_terms = torch.diagonal(neg_log_softmax, 0)
-    return np.mean(loss_terms)
+    return torch.mean(loss_terms)
 
 
 def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func, opt=None):
@@ -60,9 +65,24 @@ def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func,
     return loss.item(), len(q1_batch)
 
 
-def iterate_batch(data, batch_size):
+def iterate_batch(data: List[Tuple[str, str]], batch_size: int) -> Generator[Tuple[List[str], List[str]], None, None]:
+    """
+    Given batch of [(q1, q2), (q1,q2), ... ] tuples, yields pairs of mini-batches
+    like [(q1, q1, ...), (q2, q2, ...)].
+
+    Args:
+        data
+            List of two-tuples of duplicate questions.
+        batch_size:
+            Size of yielded mini-batches.
+
+    >>> list(iterate_batch([("a", "b"), ("a", "b")], 1))
+    [[('a',), ('b',)], [('a',), ('b',)]]
+    >>> list(iterate_batch([("a", "b"), ("a", "b")], 2))
+    [[('a', 'a'), ('b', 'b')]]
+    """
     for i in range(0, len(data), batch_size):
-        yield data[i: i + batch_size]
+        yield list(zip(*data[i: i + batch_size]))
 
 
 def average_precision_k(actual_count, labels, k):
@@ -87,8 +107,8 @@ def average_precision_k(actual_count, labels, k):
             continue
 
         # precision@j is the number of relevant results among the top j elements divided by j
-        score += sum(labels[:j])/j
-    return score/actual_count
+        score += sum(labels[:j]) / j
+    return score / actual_count
 
 
 def mean_average_precision(actual_count_set: List[List[int]],
@@ -133,14 +153,13 @@ def get_labels(actual, predict):
 
 
 def evaluate(
-    model: nn.Module,
-    test_data: List[Tuple[str, str]],
-    dataset,
-    candidates,
-    batch_size,
-    k,
-    epoch):
-
+        model: nn.Module,
+        test_data: List[Tuple[str, str]],
+        dataset,
+        candidates,
+        batch_size,
+        k,
+        epoch):
     queries = flatmap(test_data)
     candidate_text = [c[1] for c in candidates]
     candidate_id = [c[0] for c in candidates]
@@ -160,17 +179,16 @@ def evaluate(
     print("Epoch {}: MAP score is {}".format(epoch, map_score))
 
 
-
 def fit(epochs,
         model: nn.Module,
-        loss_func,
         opt: optim.Optimizer,
         train_data: List[Tuple[str, str]],
         test_data: List[Tuple[str, str]],
         candidates: Tuple[str, str],
+        loss_func=in_batch_sampled_softmax,
         pairwise_similarity_func=pairwise_cosine_similarity,
         top_k=100,
-        batch_size = 1000):
+        batch_size=1000):
     """
     Args:
         model:
@@ -202,11 +220,11 @@ def fit(epochs,
                   for xb, yb in iterate_batch(test_data, batch_size)]
             )
 
-            evaluate(model, test_data, candidates, top_k, epoch)
+            #evaluate(model, test_data, candidates, top_k, epoch)
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-
-    print("Epoch {}: val_loss={}".format(epoch, val_loss))
+        print("Epoch {}: val_loss={}".format(epoch, val_loss))
 
 
 if __name__ == "__main__":
-    pass
+    import doctest
+    doctest.testmod()
