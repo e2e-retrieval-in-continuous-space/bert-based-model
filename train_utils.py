@@ -1,3 +1,5 @@
+from math import ceil
+
 import torch
 from torch import nn
 from torch import optim
@@ -5,7 +7,8 @@ import torch.nn.functional as F
 from data_utils import flatmap
 import numpy as np
 from typing import List, Tuple, Generator
-
+from loggers import getLogger
+logger = getLogger(__name__)
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
     """
@@ -175,8 +178,8 @@ def evaluate(
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
         map_score += mean_average_precision(actual_count_set, label_set, k)
-
-    print("Epoch {}: MAP score is {}".format(epoch, map_score))
+        logger.debug("Epoch {}: MAP score is {}".format(epoch, map_score))
+    logger.info("Epoch {}: MAP score is {}".format(epoch, map_score))
 
 
 def fit(epochs,
@@ -207,22 +210,32 @@ def fit(epochs,
             Use top K candidates for computing mean average precision
 
     """
+    train_batches = list(iterate_batch(train_data, batch_size))
+    test_batches = list(iterate_batch(test_data, batch_size))
+
     for epoch in range(epochs):
+        logger.debug("Running train...")
         model.train()
 
-        for q1_batch, q2_batch in iterate_batch(train_data, batch_size):
+        logger.debug("Running loss_batch, %s...", {"batch_size": batch_size, "batches": ceil(len(train_data)/batch_size)})
+        for i, (q1_batch, q2_batch) in enumerate(train_batches):
+            logger.debug("Running loss_batch %s...", i)
             loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
 
+        logger.debug("Running model.eval()...")
         model.eval()
         with torch.no_grad():
+            logger.debug("Computing losses per batch on evaluation data...")
             losses, nums = zip(
                 *[loss_batch(model, loss_func, xb, yb, pairwise_similarity_func)
-                  for xb, yb in iterate_batch(test_data, batch_size)]
+                  for xb, yb in test_batches]
             )
 
+            logger.debug("Evaluating...")
+            #TypeError: evaluate() missing 2 required positional arguments: 'k' and 'epoch'
             #evaluate(model, test_data, candidates, top_k, epoch)
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        print("Epoch {}: val_loss={}".format(epoch, val_loss))
+        logger.info("Epoch %d: %s", epoch, {"val_loss": val_loss})
 
 
 if __name__ == "__main__":
