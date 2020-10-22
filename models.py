@@ -9,7 +9,7 @@ class BERTVersion(enum.Enum):
     """
     Enum representing supported BERT versions
     """
-    BERT_BASE_UNCASED = 'bert-base-uncased'
+    BASE_UNCASED = 'bert-base-uncased'
 
 
 def average_layers_and_tokens(tensor: Tensor) -> Tensor:
@@ -20,7 +20,7 @@ def average_axis(axis: int, tensor: Tensor) -> Tensor:
     return tensor.sum(axis) / tensor.shape[axis]
 
 
-class BertAsFeatureExtractorEncoder(nn.Module):
+class BERTAsFeatureExtractorEncoder(nn.Module):
     def __init__(
         self,
         compute_embeddings: Callable[[List[str]], Tensor],
