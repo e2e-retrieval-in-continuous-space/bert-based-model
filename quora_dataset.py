@@ -104,7 +104,7 @@ class QuoraDataset:
                 fields[-1] = True if fields[-1] == "1" else False
 
                 yield Example(*fields)
-                if limit is not None and i >= limit:
+                if limit is not None and i + 1 >= limit:
                     break
 
 
