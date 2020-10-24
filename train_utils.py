@@ -29,8 +29,8 @@ def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
     q1_norm = F.normalize(q1_batch_embedding, dim=1, p=2)
     q2_norm = F.normalize(q2_batch_embedding, dim=1, p=2)
     pairiwse_l2_dist = torch.cdist(q1_norm, q2_norm, p=2)
-    return torch.square(pairiwse_l2_dist)
-
+    squared = torch.square(pairiwse_l2_dist)
+    return 1 - 0.5 * squared
 
 def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, pairwise_similarity_func):
     """
@@ -137,7 +137,7 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
     in encoded_candidates then return [2, 4]
     """
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
-    return torch.topk(similarity, k, largest=False).indices.tolist()
+    return torch.topk(similarity, k).indices.tolist()
 
 
 def search(model: nn.Module, batch_query, candidate_id, candidate_text, k, pairwise_similarity_func):
