@@ -1,4 +1,5 @@
 from data_utils import *
+from transformers.file_utils import cached_path
 
 
 class QuoraDataset:
@@ -7,14 +8,17 @@ class QuoraDataset:
 
     https://www.quora.com/q/quoradata/First-Quora-Dataset-Release-Question-Pairs
     """
-    def __init__(self, src_filename, split_fracs=[0.03, 0.97], seed=1):
+    def __init__(self, src_filename=None, split_fracs=[0.03, 0.97], seed=1, limit=None):
         """
             Args:
                 src_filename:
                     Local file path to the Quora Question Dataset
         """
+        if src_filename is None:
+            src_filename = cached_path("http://qim.fs.quoracdn.net/quora_duplicate_questions.tsv")
+
         # 404279 examples,  149263 positive
-        examples = list(self.read_examples(src_filename))
+        examples = list(self.read_examples(src_filename, limit))
         qid2text = {
             qid: text for qid, text in
                      flatmap([[(e.qid1, e.q1_text), (e.qid2, e.q2_text)] for e in examples])
@@ -64,21 +68,24 @@ class QuoraDataset:
     def get_train_data(self):
         """
         Returns:
-             A list of tuples of positive pair of questions (question_text1, question_text2)
+             A list of tuples of positive pair of questions (Question, Question)
         """
-        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+        return [(Question(qid1, self.get_text_for_qid(qid1)), Question(qid2, self.get_text_for_qid(qid2)))
                 for qid1, qid2 in self._train_data_qid]
 
     def get_test_data(self):
         """
         Returns:
-             A list of tuples of positive pair of questions (question_text1, question_text2)
+             A list of tuples of positive pair of questions (Question, Question)
         """
-        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+        return [(Question(qid1, self.get_text_for_qid(qid1)), Question(qid2, self.get_text_for_qid(qid2)))
                 for qid1, qid2 in self._test_data_qid]
 
+    def get_candidates(self):
+        return [(qid, text) for qid, text in self._qid2text.items()]
+
     @staticmethod
-    def read_examples(src_filename):
+    def read_examples(src_filename, limit=None):
         """
         Iterator for the Quora question dataset.
 
@@ -90,7 +97,7 @@ class QuoraDataset:
             # Skip header line
             next(f)
 
-            for line in f:
+            for i, line in enumerate(f):
                 fields = line.strip().split("\t")
 
                 # Throw away malformed lines (e.g. containing "\n")
@@ -101,6 +108,8 @@ class QuoraDataset:
                 fields[-1] = True if fields[-1] == "1" else False
 
                 yield Example(*fields)
+                if limit is not None and i + 1 >= limit:
+                    break
 
 
 if __name__ == "__main__":
