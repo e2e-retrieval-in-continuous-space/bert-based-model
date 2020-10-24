@@ -1,7 +1,6 @@
 import enum
 import torch
 from torch import nn, Tensor
-from torch.autograd import Variable
 from typing import List, Callable
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from loggers import getLogger
@@ -94,7 +93,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
                     self.cached_embeddings[misses[idx]] = embeddings[idx]
                     idx += 1
 
-        return Variable(torch.stack(hits))
+        return torch.stack(hits).detach()
 
 
 if __name__ == "__main__":
