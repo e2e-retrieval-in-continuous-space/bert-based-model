@@ -89,11 +89,11 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             idx = 0
             for i, doc in enumerate(hits):
                 if doc is None:
-                    hits[i] = embeddings[idx]
-                    self.cached_embeddings[misses[idx]] = embeddings[idx]
+                    array = embeddings[idx].detach().numpy()
+                    hits[i] = self.cached_embeddings[misses[idx]] = array
                     idx += 1
 
-        return torch.stack(hits).detach()
+        return torch.stack([torch.from_numpy(hit) for hit in hits])
 
 
 if __name__ == "__main__":
