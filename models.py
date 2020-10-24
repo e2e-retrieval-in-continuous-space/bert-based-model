@@ -1,7 +1,6 @@
 import enum
 import torch
 from torch import nn, Tensor
-from torch.autograd import Variable
 from typing import List, Callable
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from loggers import getLogger
@@ -42,20 +41,62 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.linear = nn.Linear(self.embeddings_dim, self.hidden_size)
         self.cached_embeddings = {}
 
-    def forward(self, documents: List[str]):
+    def forward(self, documents: List[str]) -> Tensor:
         embeddings = self.compute_embeddings(documents)
         return self.linear(embeddings)
 
-    def compute_embeddings(self, documents: List[str]):
-        # @TODO measure performance of computing embeddings one by one rather than as a list.
-        #       maybe a simple document-based dict would do just as good?
-        key = id(documents)
-        if key not in self.cached_embeddings:
-            logger.debug("Computing BERT embeddings...")
-            inputs = self.tokenizer(documents, return_tensors="pt", padding=True, truncation=True)
-            hidden_states = self.bert(**inputs).hidden_states
-            embeddings = self.bert_reducer(torch.stack(hidden_states))
-            # @TODO: shouldn't a variable be input to the model?
-            self.cached_embeddings[key] = Variable(embeddings)
-        return self.cached_embeddings[key]
+    def compute_embeddings(self, documents: List[str]) -> Tensor:
+        """
+        Encodes a list of strings (documents) into vectors.
 
+        Caches results between runs.
+
+        >>> m = BERTAsFeatureExtractorEncoder(BERTVersion.BASE_UNCASED)
+        >>> out = m.compute_embeddings(["I like ice cream."])
+
+        Let's confirm the embedding is what we pre-computed earlier:
+        >>> torch.mean(out)
+        tensor(-0.0199)
+
+        Compute again and confirm it's the same:
+        >>> torch.mean(m.compute_embeddings(["I like ice cream."]))
+        tensor(-0.0199)
+
+        Add a cache miss into the mix and confirm both cache misses and hits make sense:
+        >>> out2 = m.compute_embeddings(["I like ice cream.", "It's a blue bird.", "I like ice cream."])
+        >>> torch.mean(out2[0]) == torch.mean(out2[2])
+        tensor(True)
+        >>> torch.mean(out2[0])
+        tensor(-0.0199)
+        >>> torch.mean(out2[1])
+        tensor(-0.0187)
+        """
+        hits = []
+        misses = []
+        for doc in documents:
+            if doc in self.cached_embeddings:
+                hits.append(self.cached_embeddings[doc])
+            else:
+                hits.append(None)
+                misses.append(doc)
+
+        nb_misses = len(misses)
+        if nb_misses:
+            logger.debug("Computing BERT embeddings for %d cache misses (%d hits)", nb_misses, len(hits) - nb_misses)
+            with torch.no_grad():
+                inputs = self.tokenizer(misses, return_tensors="pt", padding=True, truncation=True)
+                hidden_states = self.bert(**inputs).hidden_states
+                embeddings = self.bert_reducer(torch.stack(hidden_states))
+            idx = 0
+            for i, doc in enumerate(hits):
+                if doc is None:
+                    array = embeddings[idx].numpy()
+                    hits[i] = self.cached_embeddings[misses[idx]] = array
+                    idx += 1
+
+        return torch.stack([torch.from_numpy(hit) for hit in hits])
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

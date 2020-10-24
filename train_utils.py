@@ -221,15 +221,12 @@ def fit(epochs,
             Use top K candidates for computing mean average precision
 
     """
-    train_batches = list(iterate_batch(train_data, batch_size))
-    test_batches = list(iterate_batch(test_data, batch_size))
-
     for epoch in range(epochs):
         logger.debug("Running train...")
         model.train()
 
         logger.debug("Running loss_batch, %s...", {"batch_size": batch_size, "batches": ceil(len(train_data)/batch_size)})
-        for i, (q1_batch, q2_batch) in enumerate(train_batches):
+        for i, (q1_batch, q2_batch) in enumerate(iterate_batch(train_data, batch_size)):
             loss_val, batch_count = loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
             logger.debug("Running loss_batch %s: %f", i, loss_val)
 
@@ -239,7 +236,7 @@ def fit(epochs,
             logger.debug("Computing losses per batch on evaluation data...")
             losses, nums = zip(
                 *[loss_batch(model, loss_func, xb, yb, pairwise_similarity_func)
-                  for xb, yb in test_batches]
+                  for xb, yb in iterate_batch(test_data, batch_size)]
             )
 
             logger.debug("Evaluating...")
