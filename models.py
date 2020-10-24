@@ -83,13 +83,14 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         nb_misses = len(misses)
         if nb_misses:
             logger.debug("Computing BERT embeddings for %d cache misses (%d hits)", nb_misses, len(hits) - nb_misses)
-            inputs = self.tokenizer(misses, return_tensors="pt", padding=True, truncation=True)
-            hidden_states = self.bert(**inputs).hidden_states
-            embeddings = self.bert_reducer(torch.stack(hidden_states))
+            with torch.no_grad():
+                inputs = self.tokenizer(misses, return_tensors="pt", padding=True, truncation=True)
+                hidden_states = self.bert(**inputs).hidden_states
+                embeddings = self.bert_reducer(torch.stack(hidden_states))
             idx = 0
             for i, doc in enumerate(hits):
                 if doc is None:
-                    array = embeddings[idx].detach().numpy()
+                    array = embeddings[idx].numpy()
                     hits[i] = self.cached_embeddings[misses[idx]] = array
                     idx += 1
 
