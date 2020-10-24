@@ -135,21 +135,9 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
     For each query, find indices of the top k relevant candidates
     For example, for k = 2 and the top k candidates are in index position 2 and 4
     in encoded_candidates then return [2, 4]
-
-    >>> from torch import Tensor
-    >>> f1 = pairwise_cosine_similarity
-    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [0,0]]), 2, f1)
-    [[0, 1]]
-    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [4,4]]), 2, f1)
-    [[0, 2]]
-    >>> f2 = lambda x1, x2: torch.cdist(x1, x2)
-    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [0,0]]), 2, f2)
-    [[0, 2]]
-    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [4,4]]), 2, f2)
-    [[0, 1]]
     """
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
-    return torch.topk(similarity, k).indices.tolist()
+    return torch.topk(similarity, k, largest=False).indices.tolist()
 
 
 def search(model: nn.Module, batch_query, candidate_id, candidate_text, k, pairwise_similarity_func):

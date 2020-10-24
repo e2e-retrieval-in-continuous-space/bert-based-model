@@ -1,7 +1,9 @@
 import unittest
-from train_utils import pairwise_cosine_similarity
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
+from torch import Tensor
+from train_utils import pairwise_cosine_similarity, top_candidates
+
 
 class TestTrainUtils(unittest.TestCase):
 
@@ -24,8 +26,16 @@ class TestTrainUtils(unittest.TestCase):
         self.assertEqual(actual.shape, expected.shape)
         self.assertTrue(torch.allclose(actual, expected))
 
+    def test_top_candidates(self):
+        query = Tensor([[1, 1]])
+        candidates = Tensor([[0, 2], [3, 3], [0, 0], [-3, -3]])
+        actual = top_candidates(query, candidates, 2, pairwise_cosine_similarity)
+        expected = [[1, 0]]
+        self.assertListEqual(expected, actual)
+
+
 if __name__ == '__main__':
     """
-    python -m unittest tests/test_trail_utils.py
+    python -m unittest tests/test_train_utils.py
     """
     unittest.main()
