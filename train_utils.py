@@ -148,8 +148,8 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
     >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [4,4]]), 2, f2)
     [[0, 1]]
     """
-    distances = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
-    return torch.topk(distances, k, largest=False).indices.tolist()
+    similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
+    return torch.topk(similarity, k).indices.tolist()
 
 
 def search(model: nn.Module, batch_query, candidate_id, candidate_text, k, pairwise_similarity_func):
