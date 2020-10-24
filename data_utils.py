@@ -7,6 +7,8 @@ import numpy as np
 Example = namedtuple("Example",
                      ["id", "qid1", "qid2", "q1_text", "q2_text", "is_duplicate"])
 
+Question = namedtuple("Question",
+                      ["qid", "text"])
 
 def generate_data(examples: List[Example], reachable):
     """

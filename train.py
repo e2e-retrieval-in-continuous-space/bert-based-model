@@ -12,9 +12,13 @@ logger.info("Quora dataset loaded")
 
 train_data = dataset.get_train_data()
 test_data = dataset.get_test_data()
+candidates = dataset.get_candidates()[:10]
 
 learning_rate = 1e-1
-model = BERTAsFeatureExtractorEncoder(BERTVersion.BASE_UNCASED)
+model = BERTAsFeatureExtractorEncoder(
+    BERTVersion.BASE_UNCASED,
+    hidden_size=300
+)
 # @TODO: Change to a different optimizer
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 logger.info("Running fit()")
@@ -24,6 +28,8 @@ fit(
     opt=optimizer,
     train_data=train_data,
     test_data=test_data,
-    candidates=("square", "root"),
+    dataset=dataset,
+    candidates=candidates,
+    top_k=2,
     batch_size=10,
 )

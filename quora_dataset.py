@@ -1,6 +1,7 @@
 from data_utils import *
 from transformers.file_utils import cached_path
 
+
 class QuoraDataset:
     """
     A data class for the Quora dataset at:
@@ -67,18 +68,21 @@ class QuoraDataset:
     def get_train_data(self):
         """
         Returns:
-             A list of tuples of positive pair of questions (question_text1, question_text2)
+             A list of tuples of positive pair of questions (Question, Question)
         """
-        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+        return [(Question(qid1, self.get_text_for_qid(qid1)), Question(qid2, self.get_text_for_qid(qid2)))
                 for qid1, qid2 in self._train_data_qid]
 
     def get_test_data(self):
         """
         Returns:
-             A list of tuples of positive pair of questions (question_text1, question_text2)
+             A list of tuples of positive pair of questions (Question, Question)
         """
-        return [(self.get_text_for_qid(qid1), self.get_text_for_qid(qid2))
+        return [(Question(qid1, self.get_text_for_qid(qid1)), Question(qid2, self.get_text_for_qid(qid2)))
                 for qid1, qid2 in self._test_data_qid]
+
+    def get_candidates(self):
+        return [(qid, text) for qid, text in self._qid2text.items()]
 
     @staticmethod
     def read_examples(src_filename, limit=None):
