@@ -130,25 +130,35 @@ def mean_average_precision(actual_count_set: List[List[int]],
     )
 
 
-def top_candidates(encoded_batch_q, encoded_candidates, k):
+def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func):
     """
     For each query, find indices of the top k relevant candidates
     For example, for k = 2 and the top k candidates are in index position 2 and 4
     in encoded_candidates then return [2, 4]
 
-    #TODO:  replacement dummy implementation
+    >>> from torch import Tensor
+    >>> f1 = pairwise_cosine_similarity
+    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [0,0]]), 2, f1)
+    [[0, 1]]
+    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [4,4]]), 2, f1)
+    [[0, 2]]
+    >>> f2 = lambda x1, x2: torch.cdist(x1, x2)
+    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [0,0]]), 2, f2)
+    [[0, 2]]
+    >>> top_candidates(Tensor([[1,1]]), Tensor([[2,2], [3,3], [4,4]]), 2, f2)
+    [[0, 1]]
     """
-    batch_size = encoded_batch_q.shape[0]
-    return [(0, 1) for i in range(batch_size)]
+    distances = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
+    return torch.topk(distances, k, largest=False).indices.tolist()
 
 
-def search(model: nn.Module, batch_query, candidate_id, candidate_text, k):
+def search(model: nn.Module, batch_query, candidate_id, candidate_text, k, pairwise_similarity_func):
     # (batch_size, hidden_size)
     batch_query_text = [q.text for q in batch_query]
     encoded_batch_q = model(batch_query_text)
     encoded_candidates = model(candidate_text)
 
-    top_k_predict_indices = top_candidates(encoded_batch_q, encoded_candidates, k)
+    top_k_predict_indices = top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func)
     result = []
     for indices in top_k_predict_indices:
         result.append([candidate_id[i] for i in indices])
@@ -170,7 +180,8 @@ def evaluate(
         candidates,
         batch_size,
         k,
-        epoch):
+        epoch,
+        pairwise_similarity_func):
     queries = flatmap(test_data)
     candidate_text = [c[1] for c in candidates]
     candidate_id = [c[0] for c in candidates]
@@ -183,7 +194,7 @@ def evaluate(
         actual_id_set = dataset.get_relevant_result(query_ids)
         actual_count_set = [len(ids) for ids in actual_id_set]
 
-        predict_id_set = search(model, batch_query, candidate_id, candidate_text, k)
+        predict_id_set = search(model, batch_query, candidate_id, candidate_text, k, pairwise_similarity_func)
 
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
@@ -240,7 +251,7 @@ def fit(epochs,
             )
 
             logger.debug("Evaluating...")
-            evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch)
+            evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logger.info("Epoch %d: %s", epoch, {"val_loss": val_loss})
