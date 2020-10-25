@@ -10,28 +10,26 @@ class TestTrainUtils(unittest.TestCase):
 
     def test_pairwise_similarity(self):
         a = torch.randn(3, 4)
-        a = F.normalize(a, dim=1, p=2)
-
         b = torch.randn(3, 4)
-        b = F.normalize(b, dim=1, p=2)
 
         batch_size, _ = a.shape
-        expected = [[0] * batch_size for i in range(batch_size)]
-        for i in range(batch_size):
-            for j in range(batch_size):
-                expected[i][j] = torch.dist(a[i], b[j])
-
+        expected = [F.cosine_similarity(a[i].unsqueeze(0), b) for i in range(batch_size)]
+        expected = torch.stack(expected)
         actual = pairwise_cosine_similarity(a, b)
-        expected = torch.square(torch.Tensor(expected))
 
         self.assertEqual(actual.shape, expected.shape)
         self.assertTrue(torch.allclose(actual, expected))
 
     def test_top_candidates(self):
-        query = Tensor([[1, 1]])
-        candidates = Tensor([[0, 2], [3, 3], [0, 0], [-3, -3]])
-        actual = top_candidates(query, candidates, 2, pairwise_cosine_similarity)[0]
-        expected = torch.topk(cosine_similarity(query, candidates), 2, largest=True).indices.tolist()[:2]
+        k = 2
+        query = Tensor([[1, 1], [-2, 4]])
+        candidates = Tensor([[0, 2], [3, 3], [1, 0.5], [-3, -3]])
+        actual = top_candidates(query, candidates, k, pairwise_cosine_similarity)
+
+        batch_size = query.shape[0]
+        expected = [cosine_similarity(query[i].unsqueeze(0), candidates) for i in range(batch_size)]
+        expected_similarity = torch.stack(expected)
+        expected = torch.topk(expected_similarity, k, largest=True).indices.tolist()
 
         self.assertListEqual(actual, expected)
 

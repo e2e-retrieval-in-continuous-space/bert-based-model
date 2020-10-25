@@ -132,10 +132,19 @@ def mean_average_precision(actual_count_set: List[List[int]],
 
 def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func):
     """
-    For each query, find indices of the top k relevant candidates
-    For example, for k = 2 and the top k candidates are in index position 2 and 4
-    in encoded_candidates then return [2, 4]
+    For each query, find indices of the top k relevant candidates measured by the pairwise_similarity_func.
+
+    Args:
+        encoded_batch_q:
+            Encoded batch of queries.  Shape (batch_size, hidden_size)
+        encoded_candidates:
+            Encoded candidates.  Shape (candidate_size, hidden_size)
+
+    Returns:
+            A list of lists of indices of top k relevant candidates as measured by the similarity function
+            [ [idx1, idx2, ...], [idx9, idx10, ...], ... ]
     """
+    # Shape: (batch_size, candidate_size)
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
     return torch.topk(similarity, k).indices.tolist()
 
