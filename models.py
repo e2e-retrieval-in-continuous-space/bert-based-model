@@ -1,10 +1,15 @@
 import enum
 import torch
+from pathlib import Path
 from torch import nn, Tensor
 from typing import List, Callable
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from loggers import getLogger
+import pickle
 logger = getLogger(__name__)
+
+CACHE_PATH = Path(__file__).parents[0] / "bert-cache"
+CACHE_PATH.mkdir(parents=True, exist_ok=True)
 
 class BERTVersion(enum.Enum):
     """
@@ -40,6 +45,14 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
 
         self.linear = nn.Linear(self.embeddings_dim, self.hidden_size)
         self.cached_embeddings = {}
+        self.cached_path = CACHE_PATH / ("%s.cache" % bert_version.value)
+        try:
+            with self.cached_path.open('rb') as cachefile:
+                self.cached_embeddings = pickle.load(cachefile)
+                logger.info("Cached BERT loaded from %s", self.cached_path)
+        except Exception as e:
+            logger.warn("Cached BERT embeddings from %s cannot be loaded (%s)", self.cached_path, e)
+
 
     def forward(self, documents: List[str]) -> Tensor:
         embeddings = self.compute_embeddings(documents)
@@ -93,6 +106,9 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
                     array = embeddings[idx].numpy()
                     hits[i] = self.cached_embeddings[misses[idx]] = array
                     idx += 1
+
+            with self.cached_path.open('wb') as cachefile:
+                pickle.dump(self.cached_embeddings, cachefile)
 
         return torch.stack([torch.from_numpy(hit) for hit in hits])
 
