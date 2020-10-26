@@ -7,15 +7,12 @@ from loggers import getLogger
 
 logger = getLogger(__name__)
 
-logger.info("Loading Quora dataset...")
-dataset = QuoraDataset(limit=1000)
-logger.info("Quora dataset loaded")
+"""
+# For usage, run:
+python train.py --help
+"""
 
-train_data = dataset.get_train_data()
-test_data = dataset.get_test_data()
-candidates = dataset.get_candidates()
-
-train_config = {
+default_train_config = {
     "learning_rate": 1e-3,
     "embedding_dim": 300,
     "top_k": 10,
@@ -23,21 +20,71 @@ train_config = {
     "epoch_num": 5,
 }
 
-model = get_model(ModelType.SIMPLE_EMBEDDING_MODEL, train_config)
+parser = argparse.ArgumentParser(description='Training a model with Quora dataset')
 
-print(model.__class__.__name__)
+parser.add_argument('--model_type',
+                    type=str,
+                    choices=[m.value for m in ModelType],
+                    default=ModelType.SIMPLE_EMBEDDING_MODEL.value,
+                    help='Encoder model type')
+
+parser.add_argument('--epoch_num',
+                    type=int,
+                    default=default_train_config['epoch_num'],
+                    help='Number of passes of the dataset to train the model')
+
+parser.add_argument('--embedding_dim',
+                    type=int,
+                    default=default_train_config['embedding_dim'],
+                    help='Number of passes of the dataset to train the model')
+
+parser.add_argument('--top_k',
+                    type=int,
+                    default=default_train_config['top_k'],
+                    help='Number of top candidates to compute MAP@K')
+
+parser.add_argument('--batch_size',
+                    type=int,
+                    default=default_train_config['batch_size'],
+                    help='Batch size for training')
+
+parser.add_argument('--learning_rate',
+                    type=float,
+                    default=default_train_config['learning_rate'],
+                    help='Learning rate for the optimizer')
+
+parser.add_argument('--limit',
+                    type=int,
+                    help='Limit for the dataset')
+
+args = parser.parse_args()
+
+
+logger.info("Loading Quora dataset...")
+dataset = QuoraDataset(limit=args.limit)
+logger.info("Quora dataset loaded")
+
+train_data = dataset.get_train_data()
+test_data = dataset.get_test_data()
+candidates = dataset.get_candidates()
+
+model = get_model(ModelType(args.model_type), vars(args))
 
 # @TODO: Change to a different optimizer
-optimizer = optim.Adam(model.parameters(), lr=train_config["learning_rate"])
-logger.info("Running fit()")
+optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+
+logger.info("Command-line args %s", args)
+logger.info("Running fit() for model %s", model.__class__.__name__)
+
+# Start fitting the model
 fit(
-    epochs=train_config["epoch_num"],
+    epochs=args.epoch_num,
     model=model,
     opt=optimizer,
     train_data=train_data,
     test_data=test_data,
     dataset=dataset,
     candidates=candidates,
-    top_k=train_config["top_k"],
-    batch_size=train_config["batch_size"],
+    top_k=args.top_k,
+    batch_size=args.batch_size
 )
