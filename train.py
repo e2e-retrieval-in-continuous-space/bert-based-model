@@ -1,5 +1,5 @@
 import argparse
-from model_factory import get_model, ModelType
+from model_factory import ModelFactory
 from torch import optim
 from train_utils import fit
 from quora_dataset import QuoraDataset
@@ -26,8 +26,8 @@ parser = argparse.ArgumentParser(description='Training a model with Quora datase
 
 parser.add_argument('--model_type',
                     type=str,
-                    choices=[m.value for m in ModelType],
-                    default=ModelType.SIMPLE_EMBEDDING_MODEL.value,
+                    choices=ModelFactory.get_available_models(),
+                    default=ModelFactory.simple_embedding_model.__name__,
                     help='Encoder model type')
 
 parser.add_argument('--epoch_num',
@@ -80,7 +80,7 @@ train_data = dataset.get_train_data()
 test_data = dataset.get_test_data()
 candidates = dataset.get_candidates()
 
-model = get_model(ModelType(args.model_type), vars(args))
+model = ModelFactory.get_model(args.model_type, vars(args))
 
 # @TODO: Change to a different optimizer
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
