@@ -8,6 +8,8 @@ from data_utils import flatmap
 import numpy as np
 from typing import List, Tuple, Generator
 from loggers import getLogger
+from datetime import datetime
+import os.path
 logger = getLogger(__name__)
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
@@ -209,7 +211,8 @@ def fit(epochs,
         loss_func=in_batch_sampled_softmax,
         pairwise_similarity_func=pairwise_cosine_similarity,
         top_k=100,
-        batch_size=1000):
+        batch_size=1000,
+        save_model_dir=None):
     """
     Args:
         model:
@@ -251,6 +254,12 @@ def fit(epochs,
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logger.info("Epoch %d: val_loss=%f", epoch, val_loss)
+
+        if save_model_dir:
+            file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
+            full_file_name = os.path.join(save_model_dir, file_name)
+            logger.info("Saving model to %s", full_file_name)
+            torch.save(model.state_dict(), full_file_name)
 
 
 if __name__ == "__main__":

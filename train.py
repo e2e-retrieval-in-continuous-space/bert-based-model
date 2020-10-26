@@ -4,6 +4,8 @@ from torch import optim
 from train_utils import fit
 from quora_dataset import QuoraDataset
 from loggers import getLogger
+import os
+import sys
 
 logger = getLogger(__name__)
 
@@ -57,7 +59,17 @@ parser.add_argument('--limit',
                     type=int,
                     help='Limit for the dataset')
 
+parser.add_argument('--save_model_dir',
+                    type=str,
+                    help='Directory to save model parameters after training')
+
 args = parser.parse_args()
+
+# If the save_model_dir doesn't exist or not writable, fail now
+save_model_dir = args.save_model_dir
+if save_model_dir and (not os.path.isdir(save_model_dir) or not os.access(save_model_dir, os.W_OK)):
+    sys.stderr.write("{} is not a writable directory\n".format(args.save_model_dir))
+    sys.exit(1)
 
 
 logger.info("Loading Quora dataset...")
@@ -86,5 +98,8 @@ fit(
     dataset=dataset,
     candidates=candidates,
     top_k=args.top_k,
-    batch_size=args.batch_size
+    batch_size=args.batch_size,
+    save_model_dir=save_model_dir
 )
+
+
