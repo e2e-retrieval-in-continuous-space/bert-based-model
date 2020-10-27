@@ -259,9 +259,6 @@ def fit(epochs,
             )
 
             logger.debug("Evaluating...")
-            map_score = evaluate(model, train_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
-            logger.info("Epoch {}: train data MAP score is {}".format(epoch, map_score))
-
             map_score = evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
             logger.info("Epoch {}: test data MAP score is {}".format(epoch, map_score))
 
