@@ -10,6 +10,7 @@ from typing import List, Tuple, Generator
 from loggers import getLogger
 from datetime import datetime
 import os.path
+import time
 logger = getLogger(__name__)
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
@@ -180,7 +181,7 @@ def evaluate(
         k,
         epoch,
         pairwise_similarity_func):
-    queries = flatmap(test_data)
+    queries = list(set(flatmap(test_data)))
     candidate_text = [c[1] for c in candidates]
     candidate_id = [c[0] for c in candidates]
     query_batches = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
@@ -237,8 +238,11 @@ def fit(epochs,
 
         logger.debug("Running loss_batch, %s...", {"batch_size": batch_size, "batches": ceil(len(train_data)/batch_size)})
         for i, (q1_batch, q2_batch) in enumerate(iterate_batch(train_data, batch_size)):
+            start_time = time.perf_counter()
             loss_val, batch_count = loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
-            logger.debug("Running loss_batch %s: %f", i, loss_val)
+            duration = time.perf_counter() - start_time
+
+            logger.debug("Finished loss_batch %s at %.2f example/second, loss=%f", i, batch_count/duration, loss_val)
 
         logger.debug("Running model.eval()...")
         model.eval()
