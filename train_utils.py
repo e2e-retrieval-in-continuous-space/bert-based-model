@@ -10,6 +10,7 @@ from typing import List, Tuple, Generator
 from loggers import getLogger
 from datetime import datetime
 import os.path
+import time
 logger = getLogger(__name__)
 
 def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
@@ -180,7 +181,11 @@ def evaluate(
         k,
         epoch,
         pairwise_similarity_func):
-    queries = flatmap(test_data)
+    """
+    Returns:
+        MAP@K for the given test_data
+    """
+    queries = list(set(flatmap(test_data)))
     candidate_text = [c[1] for c in candidates]
     candidate_id = [c[0] for c in candidates]
     query_batches = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
@@ -197,8 +202,9 @@ def evaluate(
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
         map_score += mean_average_precision(actual_count_set, label_set, k)
-        logger.debug("Epoch {}: MAP score is {}".format(epoch, map_score))
-    logger.info("Epoch {}: MAP score is {}".format(epoch, map_score))
+        #logger.debug("Epoch {}: MAP score is {}".format(epoch, map_score))
+
+    return map_score
 
 
 def fit(epochs,
@@ -237,8 +243,11 @@ def fit(epochs,
 
         logger.debug("Running loss_batch, %s...", {"batch_size": batch_size, "batches": ceil(len(train_data)/batch_size)})
         for i, (q1_batch, q2_batch) in enumerate(iterate_batch(train_data, batch_size)):
+            start_time = time.perf_counter()
             loss_val, batch_count = loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
-            logger.debug("Running loss_batch %s: %f", i, loss_val)
+            duration = time.perf_counter() - start_time
+
+            logger.debug("Finished loss_batch %s at %.2f example/second, loss=%f", i, batch_count/duration, loss_val)
 
         logger.debug("Running model.eval()...")
         model.eval()
@@ -250,16 +259,18 @@ def fit(epochs,
             )
 
             logger.debug("Evaluating...")
-            evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
+            map_score = evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
+            logger.info("Epoch {}: test data MAP score is {}".format(epoch, map_score))
+
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logger.info("Epoch %d: val_loss=%f", epoch, val_loss)
 
-        if save_model_dir:
-            file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
-            full_file_name = os.path.join(save_model_dir, file_name)
-            logger.info("Saving model to %s", full_file_name)
-            torch.save(model.state_dict(), full_file_name)
+    if save_model_dir:
+        file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
+        full_file_name = os.path.join(save_model_dir, file_name)
+        logger.info("Saving model to %s", full_file_name)
+        torch.save(model.state_dict(), full_file_name)
 
 
 if __name__ == "__main__":

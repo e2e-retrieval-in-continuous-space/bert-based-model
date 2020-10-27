@@ -6,6 +6,7 @@ from quora_dataset import QuoraDataset
 from loggers import getLogger
 import os
 import sys
+import random
 
 logger = getLogger(__name__)
 
@@ -15,11 +16,12 @@ python train.py --help
 """
 
 default_train_config = {
-    "learning_rate": 1e-3,
+    "learning_rate": 1e-2,
     "embedding_dim": 300,
     "top_k": 10,
-    "batch_size": 100,
+    "batch_size": 1000,
     "epoch_num": 5,
+    "candidate_size": 19000
 }
 
 parser = argparse.ArgumentParser(description='Training a model with Quora dataset')
@@ -59,6 +61,11 @@ parser.add_argument('--limit',
                     type=int,
                     help='Limit for the dataset')
 
+parser.add_argument('--candidate_size',
+                    type=int,
+                    default=default_train_config['candidate_size'],
+                    help='Limit for the candidate size')
+
 parser.add_argument('--save_model_dir',
                     type=str,
                     help='Directory to save model parameters after training')
@@ -80,12 +87,18 @@ train_data = dataset.get_train_data()
 test_data = dataset.get_test_data()
 candidates = dataset.get_candidates()
 
+random.shuffle(candidates)
+candidates = candidates[:args.candidate_size]
+
 model = ModelFactory.get_model(args.model_type, vars(args))
 
 # @TODO: Change to a different optimizer
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
 logger.info("Command-line args %s", args)
+logger.info("train_data count: %d", len(train_data))
+logger.info("test_data count: %d", len(test_data))
+logger.info("candidate count: %d", len(candidates))
 logger.info("Running fit() for model %s", model.__class__.__name__)
 
 # Start fitting the model
