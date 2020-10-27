@@ -181,6 +181,10 @@ def evaluate(
         k,
         epoch,
         pairwise_similarity_func):
+    """
+    Returns:
+        MAP@K for the given test_data
+    """
     queries = list(set(flatmap(test_data)))
     candidate_text = [c[1] for c in candidates]
     candidate_id = [c[0] for c in candidates]
@@ -198,8 +202,9 @@ def evaluate(
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
         map_score += mean_average_precision(actual_count_set, label_set, k)
-        logger.debug("Epoch {}: MAP score is {}".format(epoch, map_score))
-    logger.info("Epoch {}: MAP score is {}".format(epoch, map_score))
+        #logger.debug("Epoch {}: MAP score is {}".format(epoch, map_score))
+
+    return map_score
 
 
 def fit(epochs,
@@ -254,7 +259,12 @@ def fit(epochs,
             )
 
             logger.debug("Evaluating...")
-            evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
+            map_score = evaluate(model, train_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
+            logger.info("Epoch {}: train data MAP score is {}".format(epoch, map_score))
+
+            map_score = evaluate(model, test_data, dataset, candidates, batch_size, top_k, epoch, pairwise_similarity_func)
+            logger.info("Epoch {}: test data MAP score is {}".format(epoch, map_score))
+
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logger.info("Epoch %d: val_loss=%f", epoch, val_loss)
