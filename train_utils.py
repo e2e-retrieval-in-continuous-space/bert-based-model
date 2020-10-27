@@ -269,11 +269,11 @@ def fit(epochs,
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logger.info("Epoch %d: val_loss=%f", epoch, val_loss)
 
-        if save_model_dir:
-            file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
-            full_file_name = os.path.join(save_model_dir, file_name)
-            logger.info("Saving model to %s", full_file_name)
-            torch.save(model.state_dict(), full_file_name)
+    if save_model_dir:
+        file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
+        full_file_name = os.path.join(save_model_dir, file_name)
+        logger.info("Saving model to %s", full_file_name)
+        torch.save(model.state_dict(), full_file_name)
 
 
 if __name__ == "__main__":
