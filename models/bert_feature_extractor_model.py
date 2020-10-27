@@ -40,10 +40,11 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.config = AutoConfig.from_pretrained(self.bert_version, output_hidden_states=True, return_dict=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.bert_version, config=self.config)
         self.bert = AutoModel.from_pretrained(self.bert_version, config=self.config)
+        self.bert.to('cuda')
         self.embeddings_dim = self.config.hidden_size
         self.hidden_size = hidden_size or self.embeddings_dim * 2
 
-        self.linear = nn.Linear(self.embeddings_dim, self.hidden_size)
+        self.linear = nn.Linear(self.embeddings_dim, self.hidden_size).to('cuda')
         self.cached_embeddings = {}
         self.cached_path = CACHE_PATH / ("%s.cache" % bert_version.value)
         try:
@@ -55,8 +56,9 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
 
 
     def forward(self, documents: List[str]) -> Tensor:
-        embeddings = self.compute_embeddings(documents)
-        return self.linear(embeddings)
+        embeddings = self.compute_embeddings(documents) + 0.1
+        retval = self.linear(embeddings)
+        return retval
 
     def compute_embeddings(self, documents: List[str]) -> Tensor:
         """
@@ -88,7 +90,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         misses = []
         for doc in documents:
             if doc in self.cached_embeddings:
-                hits.append(self.cached_embeddings[doc])
+                hits.append(torch.Tensor(self.cached_embeddings[doc]))
             else:
                 hits.append(None)
                 misses.append(doc)
@@ -103,14 +105,15 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             idx = 0
             for i, doc in enumerate(hits):
                 if doc is None:
-                    array = embeddings[idx].numpy()
-                    hits[i] = self.cached_embeddings[misses[idx]] = array
+                    hits[i] = embeddings[idx]
+                    self.cached_embeddings[misses[idx]] = embeddings[idx].tolist()
                     idx += 1
 
             with self.cached_path.open('wb') as cachefile:
                 pickle.dump(self.cached_embeddings, cachefile)
 
-        return torch.stack([torch.from_numpy(hit) for hit in hits])
+        retval = torch.stack([hit for hit in hits])
+        return retval
 
 
 if __name__ == "__main__":

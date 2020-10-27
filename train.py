@@ -80,6 +80,11 @@ train_data = dataset.get_train_data()
 test_data = dataset.get_test_data()
 candidates = dataset.get_candidates()
 
+import torch
+import torch.cuda
+cuda = torch.device('cuda')
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.autograd.set_detect_anomaly(True)
 model = ModelFactory.get_model(args.model_type, vars(args))
 
 # @TODO: Change to a different optimizer
@@ -97,9 +102,8 @@ fit(
     test_data=test_data,
     dataset=dataset,
     candidates=candidates,
-    top_k=args.top_k,
-    batch_size=args.batch_size,
+    top_k=args.top_k,	
+    batch_size=args.batch_size	,
     save_model_dir=save_model_dir
 )
-
 
