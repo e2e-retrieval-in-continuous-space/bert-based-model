@@ -56,7 +56,6 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
 
     def forward(self, documents: List[str]) -> Tensor:
         embeddings = self.compute_embeddings(documents) + 0.1
-        memory_report()
         retval = self.linear(embeddings)
         return retval
 
