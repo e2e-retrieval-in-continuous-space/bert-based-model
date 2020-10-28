@@ -29,12 +29,6 @@ def average_axis(axis: int, tensor: Tensor) -> Tensor:
     return tensor.sum(axis) / tensor.shape[axis]
 
 
-def memory_report():
-    return
-    print(torch.cuda.memory_stats(0)['reserved_bytes.all.current'] / 1024 / 1024, "MB")
-    print(torch.cuda.memory_stats(0)['allocated_bytes.all.current'] / 1024 / 1024, "MB")
-
-
 class BERTAsFeatureExtractorEncoder(nn.Module):
     def __init__(
             self,
