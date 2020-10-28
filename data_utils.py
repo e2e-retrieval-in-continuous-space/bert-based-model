@@ -129,3 +129,8 @@ def flatmap(iterable):
         A list that is flattened by one-level
     """
     return list(chain.from_iterable(iterable))
+
+
+def chunks(data, n):
+    for i in range(0, len(data), n):
+        yield data[i:i + n]
