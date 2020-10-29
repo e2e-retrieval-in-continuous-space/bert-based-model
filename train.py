@@ -2,22 +2,14 @@ import argparse
 from model_factory import ModelFactory
 from torch import optim
 from train_utils import fit
-from data_utils import chunks, flatmap
+from data_utils import chunks
 from quora_dataset import QuoraDataUtil
 from loggers import getLogger
 import os
 import sys
-import random
 from data_utils import flatmap
 
 logger = getLogger(__name__)
-
-logger.info("Loading Quora dataset...")
-from quora_dataset import QuoraDataset
-
-dataset = QuoraDataset()
-logger.info("Quora dataset loaded")
-
 
 """
 # For usage, run:
