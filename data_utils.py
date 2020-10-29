@@ -1,7 +1,7 @@
 from collections import defaultdict, namedtuple
 from itertools import chain
 import random
-from typing import List
+from typing import List, Tuple
 import numpy as np
 
 Example = namedtuple("Example",
@@ -10,45 +10,51 @@ Example = namedtuple("Example",
 Question = namedtuple("Question",
                       ["qid", "text"])
 
-def generate_data(examples: List[Example], reachable):
+
+def generate_all_examples(qid_examples: List[Tuple[str, str]]):
     """
-    Use the transitive closure of the graph to generate all relevant
-    pairs of qids.
+    Use the transitive closure of the graph to generate all
+    positive examples
 
     Args:
-        examples:
-            A list of positive examples
-        reachable:
-            A dict of qid to its reachable nodes
+        qid_examples:
+            A list of positive qid pairs (qid1, qid2)
 
     Returns:
-        A set of tuples of (qid1, qid2) which are relevant
+        A set of (qid1, qid2) and the transitive closure graph
     """
+    # Build adjacency list
+    graph = build_graph(qid_examples)
+
+    # Build reachability map
+    reachable = build_transitive_closure(graph)
+
     result = []
-    for e in examples:
-        for neighbor in reachable[e.qid1]:
-            result.append((e.qid1, neighbor))
-        for neighbor in reachable[e.qid2]:
-            result.append((e.qid2, neighbor))
-    return set(result)
+    for qid1, qid2 in qid_examples:
+        for neighbor in reachable[qid1]:
+            result.append((qid1, neighbor))
+
+        for neighbor in reachable[qid2]:
+            result.append((qid2, neighbor))
+    return set(result), reachable
 
 
-def build_graph(examples: List[Example]):
+def build_graph(qid_examples: List[Tuple[str, str]]):
     """
     Build an adjacent lists based on the examples.  Each node
     is represented by the qid of a question.
 
     Args:
-        examples: A list of Examples to build adjacent lists on.
+        qid_examples: A list of (qid1, qid2) to build adjacent lists on.
 
     Returns:
-        Returns a dict of qid to its adjacent nodes
+        Returns a dict of qid to a list adjacent nodes
     """
     # graph is an adjacency list
     graph = defaultdict(list)
-    for ex in examples:
-        graph[ex.qid1].append(ex.qid2)
-        graph[ex.qid2].append(ex.qid1)
+    for qid1, qid2 in qid_examples:
+        graph[qid1].append(qid2)
+        graph[qid2].append(qid1)
     return graph
 
 
