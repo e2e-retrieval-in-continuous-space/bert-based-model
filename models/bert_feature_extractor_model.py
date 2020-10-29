@@ -92,7 +92,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
                     self.cache[misses[idx]] = embeddings[idx].tolist()
                     idx += 1
 
-        retval = torch.stack([Tensor(hit) for hit in results])
+        retval = torch.stack([Tensor(hit) for hit in results]).to(self.device)
         return retval
 
     def _run_bert(self, documents):
