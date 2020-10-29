@@ -1,17 +1,12 @@
 import enum
 import torch
-import uuid
-from pathlib import Path
 from torch import nn, Tensor
 from typing import List, Callable
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from loggers import getLogger
-import pickle
+from models.utils import EmbeddingsCache
 
 logger = getLogger(__name__)
-
-CACHE_PATH = Path(__file__).parents[0] / "embeddings-cache"
-CACHE_PATH.mkdir(parents=True, exist_ok=True)
 
 
 class BERTVersion(enum.Enum):
@@ -47,7 +42,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.config = AutoConfig.from_pretrained(self.bert_version, output_hidden_states=True, return_dict=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.bert_version, config=self.config)
         self.bert = AutoModel.from_pretrained(self.bert_version, config=self.config)
-        self.bert.to('cuda')
+        self.bert.to(self.device)
         self.embeddings_dim = self.config.hidden_size
         self.hidden_size = hidden_size or self.embeddings_dim * 2
 
@@ -89,7 +84,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         nb_misses = len(misses)
         if nb_misses:
             logger.debug("Computing BERT embeddings for %d cache misses (%d hits)", nb_misses, len(results) - nb_misses)
-            embeddings = self.bert_reducer(self._run_bert(documents))
+            embeddings = self.bert_reducer(self._run_bert(misses))
             idx = 0
             for i, doc in enumerate(results):
                 if doc is None:
@@ -104,54 +99,10 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         with torch.no_grad():
             encoded_chunks = []
             for chunk in chunks(documents, 1000):
-                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True).to('cuda')
+                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True).to(self.device)
                 hidden_states = self.bert(**inputs).hidden_states
                 encoded_chunks.append(torch.stack([s.to('cpu') for s in hidden_states]))
-            return torch.stack(encoded_chunks)
-
-
-class EmbeddingsCache(dict):
-
-    def __init__(self, name, *args, **kwargs):
-        super(EmbeddingsCache, self).__init__(*args, **kwargs)
-        self.cache_path = CACHE_PATH / name
-        self.unsaved_keys = []
-        logger.info("Loading cached embeddings from %s", self.cache_path)
-        try:
-            for i, path in enumerate(self.cache_path.glob('*.pickle')):
-                with path.open('rb') as cachefile:
-                    self.update(pickle.load(cachefile))
-            logger.info("%d cached embeddings loaded from %d files", len(self), i + 1)
-        except Exception as e:
-            logger.warn("Cached BERT embeddings from %s cannot be loaded (%s)", self.cache_path, e)
-
-    def get_many(self, documents):
-        hits = []
-        misses = []
-        for doc in documents:
-            if doc in self:
-                hits.append(self[doc])
-            else:
-                hits.append(None)
-                misses.append(doc)
-        return hits, misses
-
-    def __setitem__(self, key, value):
-        if key not in self:
-            self.unsaved_keys.append(key)
-        super(EmbeddingsCache, self).__setitem__(key, value)
-        if len(self.unsaved_keys) > 10000:
-            self.save()
-
-    def save(self):
-        nb_items = len(self.unsaved_keys)
-        logger.debug("Saving %d embeddings", nb_items)
-        new_path = self.cache_path / "{0}.pickle".format(uuid.uuid4())
-        with new_path.open('wb') as cachefile:
-            tmp_dict = {k: self[k] for k in self.unsaved_keys}
-            pickle.dump(tmp_dict, cachefile)
-            self.unsaved_keys = []
-        logger.debug("Saved %d embeddings", nb_items)
+            return torch.cat(encoded_chunks)
 
 
 def chunks(lst, n):
