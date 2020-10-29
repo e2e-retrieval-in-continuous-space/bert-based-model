@@ -2,11 +2,12 @@ import argparse
 from model_factory import ModelFactory
 from torch import optim
 from train_utils import fit
-from quora_dataset import QuoraDataset
+from quora_dataset import QuoraDataUtil
 from loggers import getLogger
 import os
 import sys
 import random
+from data_utils import flatmap
 
 logger = getLogger(__name__)
 
@@ -18,10 +19,10 @@ python train.py --help
 default_train_config = {
     "learning_rate": 1e-2,
     "embedding_dim": 300,
-    "top_k": 10,
+    "top_k": 100,
     "batch_size": 1000,
-    "epoch_num": 5,
-    "candidate_size": 19000
+    "retrieval_batch_size": 1000,
+    "epoch_num": 10
 }
 
 parser = argparse.ArgumentParser(description='Training a model with Quora dataset')
@@ -52,6 +53,11 @@ parser.add_argument('--batch_size',
                     default=default_train_config['batch_size'],
                     help='Batch size for training')
 
+parser.add_argument('--retrieval_batch_size',
+                    type=int,
+                    default=default_train_config['retrieval_batch_size'],
+                    help='Batch size for evaluation of test query')
+
 parser.add_argument('--learning_rate',
                     type=float,
                     default=default_train_config['learning_rate'],
@@ -60,11 +66,6 @@ parser.add_argument('--learning_rate',
 parser.add_argument('--limit',
                     type=int,
                     help='Limit for the dataset')
-
-parser.add_argument('--candidate_size',
-                    type=int,
-                    default=default_train_config['candidate_size'],
-                    help='Limit for the candidate size')
 
 parser.add_argument('--save_model_dir',
                     type=str,
@@ -80,15 +81,8 @@ if save_model_dir and (not os.path.isdir(save_model_dir) or not os.access(save_m
 
 
 logger.info("Loading Quora dataset...")
-dataset = QuoraDataset(limit=args.limit)
-logger.info("Quora dataset loaded")
-
-train_data = dataset.get_train_data()
-test_data = dataset.get_test_data()
-candidates = dataset.get_candidates()
-
-random.shuffle(candidates)
-candidates = candidates[:args.candidate_size]
+data_loader = QuoraDataUtil(limit=args.limit)
+train_data, test_data, retrieval_data, candidate_ids, qid2text = data_loader.construct_retrieval_task()
 
 model = ModelFactory.get_model(args.model_type, vars(args))
 
@@ -98,7 +92,11 @@ optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 logger.info("Command-line args %s", args)
 logger.info("train_data count: %d", len(train_data))
 logger.info("test_data count: %d", len(test_data))
-logger.info("candidate count: %d", len(candidates))
+logger.info("retrieval count: %d", len(retrieval_data))
+candidate_per_query = sum([len(result) for query, result in retrieval_data])/len(retrieval_data)
+logger.info("relevant candidates per query: %.2f", candidate_per_query)
+logger.info("candidate_ids count: %d", len(candidate_ids))
+logger.info("qid2text count: %d", len(qid2text))
 logger.info("Running fit() for model %s", model.__class__.__name__)
 
 # Start fitting the model
@@ -108,10 +106,12 @@ fit(
     opt=optimizer,
     train_data=train_data,
     test_data=test_data,
-    dataset=dataset,
-    candidates=candidates,
+    retrieval_data=retrieval_data,
+    candidate_ids=candidate_ids,
+    qid2text=qid2text,
     top_k=args.top_k,
     batch_size=args.batch_size,
+    retrieval_batch_size=args.retrieval_batch_size,
     save_model_dir=save_model_dir
 )
 
