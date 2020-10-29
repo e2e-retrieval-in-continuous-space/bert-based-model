@@ -2,6 +2,7 @@ import argparse
 from model_factory import ModelFactory
 from torch import optim
 from train_utils import fit
+from data_utils import chunks, flatmap
 from quora_dataset import QuoraDataUtil
 from loggers import getLogger
 import os
@@ -10,6 +11,13 @@ import random
 from data_utils import flatmap
 
 logger = getLogger(__name__)
+
+logger.info("Loading Quora dataset...")
+from quora_dataset import QuoraDataset
+
+dataset = QuoraDataset()
+logger.info("Quora dataset loaded")
+
 
 """
 # For usage, run:
@@ -25,7 +33,14 @@ default_train_config = {
     "epoch_num": 10
 }
 
+
 parser = argparse.ArgumentParser(description='Training a model with Quora dataset')
+
+parser.add_argument('command',
+                    type=str,
+                    choices=['precompute-embeddings', 'train'],
+                    default='train',
+                    help='Command to run')
 
 parser.add_argument('--model_type',
                     type=str,
@@ -99,20 +114,41 @@ logger.info("candidate_ids count: %d", len(candidate_ids))
 logger.info("qid2text count: %d", len(qid2text))
 logger.info("Running fit() for model %s", model.__class__.__name__)
 
-# Start fitting the model
-fit(
-    epochs=args.epoch_num,
-    model=model,
-    opt=optimizer,
-    train_data=train_data,
-    test_data=test_data,
-    retrieval_data=retrieval_data,
-    candidate_ids=candidate_ids,
-    qid2text=qid2text,
-    top_k=args.top_k,
-    batch_size=args.batch_size,
-    retrieval_batch_size=args.retrieval_batch_size,
-    save_model_dir=save_model_dir
-)
 
+if args.command == "precompute-embeddings":
+    logger.info("==== Precomputing embeddings ====")
+
+    logger.info("Processing candidates...")
+    candidates_chunks = list(chunks(candidates, args.batch_size))
+    for i, chunk in enumerate(candidates_chunks):
+        logger.debug("Chunk %d out of %d", i, len(candidates_chunks))
+        model.compute_embeddings([text for _, text in chunk])
+
+    logger.info("Processing training and test data...")
+    data = set(flatmap(test_data) + flatmap(train_data))
+    data_chunks = list(chunks(list(data), args.batch_size))
+    for i, batch_query in enumerate(data_chunks):
+        logger.debug("Chunk %d out of %d", i, len(data_chunks))
+        batch_query_text = [q.text for q in batch_query]
+        model.compute_embeddings(batch_query_text)
+
+    model.cache.save()
+    sys.exit(0)
+else:
+    logger.info("==== Training the model ====")
+    # Start fitting the model
+    fit(
+        epochs=args.epoch_num,
+        model=model,
+        opt=optimizer,
+        train_data=train_data,
+        test_data=test_data,
+        retrieval_data=retrieval_data,
+        candidate_ids=candidate_ids,
+        qid2text=qid2text,
+        top_k=args.top_k,
+        batch_size=args.batch_size,
+        retrieval_batch_size=args.retrieval_batch_size,
+        save_model_dir=save_model_dir
+    )
 
