@@ -80,26 +80,6 @@ def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func,
     return loss.item(), len(q1_batch)
 
 
-def iterate_batch(data: List[Tuple[str, str]], batch_size: int) -> Generator[Tuple[List[str], List[str]], None, None]:
-    """
-    Given batch of [(q1, q2), (q1,q2), ... ] tuples, yields pairs of mini-batches
-    like [(q1, q1, ...), (q2, q2, ...)].
-
-    Args:
-        data
-            List of two-tuples of duplicate questions.
-        batch_size:
-            Size of yielded mini-batches.
-
-    >>> list(iterate_batch([("a", "b"), ("a", "b")], 1))
-    [[('a',), ('b',)], [('a',), ('b',)]]
-    >>> list(iterate_batch([("a", "b"), ("a", "b")], 2))
-    [[('a', 'a'), ('b', 'b')]]
-    """
-    for i in range(0, len(data), batch_size):
-        yield list(zip(*data[i:i + batch_size]))
-
-
 def average_precision_k(actual_count, labels, k):
     """
     Average precision at k candidates.
