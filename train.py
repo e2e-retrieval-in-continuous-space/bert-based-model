@@ -1,10 +1,12 @@
 import argparse
 from model_factory import ModelFactory
 from torch import optim
-from train_utils import fit
+from train_utils import fit, collate_fn
+from torch.utils.data import DataLoader
 from data_utils import chunks
 from quora_dataset import QuoraDataUtil
 from loggers import getLogger
+from itertools import chain
 import os
 import sys
 from data_utils import flatmap
@@ -111,17 +113,20 @@ if args.command == "precompute-embeddings":
     logger.info("==== Precomputing embeddings ====")
 
     logger.info("Processing candidates...")
-    candidates_chunks = list(chunks(candidates, args.batch_size))
+    candidate_text = [qid2text[qid] for qid in candidate_ids]
+    candidates_chunks = list(chunks(candidate_text, args.batch_size))
     for i, chunk in enumerate(candidates_chunks):
         logger.debug("Chunk %d out of %d", i, len(candidates_chunks))
-        model.compute_embeddings([text for _, text in chunk])
+        model.compute_embeddings(chunk)
 
     logger.info("Processing training and test data...")
-    data = set(flatmap(test_data) + flatmap(train_data))
-    data_chunks = list(chunks(list(data), args.batch_size))
-    for i, batch_query in enumerate(data_chunks):
+    train_loader = DataLoader(train_data, batch_size=int(args.batch_size/2), collate_fn=collate_fn)
+    test_loader = DataLoader(test_data, batch_size=int(args.batch_size/2), collate_fn=collate_fn)
+
+    data_chunks = list(chain(train_loader, test_loader))
+    for i, (q1_batch, q2_batch) in enumerate(data_chunks):
         logger.debug("Chunk %d out of %d", i, len(data_chunks))
-        batch_query_text = [q.text for q in batch_query]
+        batch_query_text = [q.text for q in q1_batch] + [q.text for q in q2_batch]
         model.compute_embeddings(batch_query_text)
 
     model.cache.save()

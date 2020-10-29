@@ -13,6 +13,7 @@ class EmbeddingsCache(dict):
     def __init__(self, name, *args, **kwargs):
         super(EmbeddingsCache, self).__init__(*args, **kwargs)
         self.cache_path = CACHE_PATH / name
+        self.cache_path.mkdir(parents=True, exist_ok=True)
         self.unsaved_keys = []
         logger.info("Loading cached embeddings from %s", self.cache_path)
         try:
