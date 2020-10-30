@@ -193,7 +193,9 @@ def evaluate(
         actual_count_set = [len(ids) for ids in actual_id_set]
 
         batch_query_text = [qid2text[qid] for qid in query_ids]
-        predict_id_set = search(model, batch_query_text, candidate_ids, candidate_text, k, pairwise_similarity_func)
+        predict_id_set = search(model, batch_query_text, candidate_ids, candidate_text, k + 1, pairwise_similarity_func)
+        for i, predictions in enumerate(predict_id_set):
+            predict_id_set[i] = [pid for pid in predictions if pid != query_ids[i]][:k]
 
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
