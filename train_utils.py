@@ -106,11 +106,11 @@ def average_precision_k(actual_count, labels, k):
     return score / actual_count
 
 
-def mean_average_precision(actual_count_set: List[List[int]],
-                           label_set: List[List[bool]],
-                           k):
+def average_precision_k_sum_for_batch(actual_count_set: List[List[int]],
+                                      label_set: List[List[bool]],
+                                      k):
     """
-    MAP@K implementation based on the definition in Gillick et al. 2018
+    Sum of the average precision at k for the given query batch
     """
     return sum(
         [average_precision_k(actual_count, labels, k)
@@ -197,9 +197,9 @@ def evaluate(
 
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
-        map_score += mean_average_precision(actual_count_set, label_set, k)
+        map_score += average_precision_k_sum_for_batch(actual_count_set, label_set, k)
 
-    return map_score
+    return map_score / len(retrieval_data)
 
 
 def fit(epochs,
