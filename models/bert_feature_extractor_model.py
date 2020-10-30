@@ -20,6 +20,10 @@ def average_layers_and_tokens(tensor: Tensor) -> Tensor:
     return average_axis(0, average_axis(len(tensor.shape) - 2, tensor))
 
 
+def last_layer(tensor: Tensor) -> Tensor:
+    return torch.mean(tensor[-2:], dim=(0,2))
+
+
 def average_axis(axis: int, tensor: Tensor) -> Tensor:
     return tensor.sum(axis) / tensor.shape[axis]
 
@@ -29,7 +33,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             self,
             bert_version: BERTVersion,
             hidden_size: int = None,
-            bert_reducer: Callable[[Tensor], Tensor] = average_layers_and_tokens,
+            bert_reducer: Callable[[Tensor], Tensor] = last_layer,
             device=None
     ):
         super().__init__()

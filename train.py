@@ -1,6 +1,7 @@
 import argparse
 from model_factory import ModelFactory
 from torch import optim
+
 from train_utils import fit, collate_fn
 from torch.utils.data import DataLoader
 from data_utils import chunks
@@ -91,10 +92,15 @@ logger.info("Loading Quora dataset...")
 data_loader = QuoraDataUtil(limit=args.limit)
 train_data, test_data, retrieval_data, candidate_ids, qid2text = data_loader.construct_retrieval_task()
 
-model = ModelFactory.get_model(args.model_type, vars(args))
+model = ModelFactory.get_model(
+    args.model_type,
+    vars(args),
+    train_data=train_data,
+    test_data=test_data,
+    qid2text=qid2text
+)
 
-# @TODO: Change to a different optimizer
-optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
 
 logger.info("Command-line args %s", args)
 logger.info("train_data count: %d", len(train_data))

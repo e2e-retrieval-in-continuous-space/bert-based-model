@@ -1,6 +1,8 @@
 import uuid
 import pickle
+from itertools import chain
 from pathlib import Path
+from data_utils import flatmap
 from loggers import getLogger
 
 CACHE_PATH = Path(__file__).parents[0] / "embeddings-cache"
@@ -52,3 +54,48 @@ class EmbeddingsCache(dict):
             self.unsaved_keys = []
         logger.debug("Saved %d embeddings", nb_items)
 
+
+class BagOfWordsTokenizer:
+
+    UNK_TOKEN = '<UNK>'
+    PAD_TOKEN = '<PAD>'
+
+    def __init__(self, train_data, test_data, qid2text):
+        self.train_data = train_data
+        self.test_data = test_data
+        self.qid2text = qid2text
+        self.vocab = self.build_vocabulary(self.train_data, self.test_data, self.qid2text)
+        self.vocab_size = len(self.vocab)
+        self.size = 100
+        self.pad_token_id = self.vocab[self.PAD_TOKEN]
+        self.unk_token_id = self.vocab[self.UNK_TOKEN]
+
+    def __call__(self, sentences):
+        return self.tokenize_many(sentences)
+
+    def tokenize_many(self, tokenized):
+        tokenized = [self.tokenize_sentence(sentence) for sentence in tokenized]
+        padded_sentences = [s + [self.pad_token_id] + [self.unk_token_id] * (self.size + 1 - len(s)) for s in tokenized]
+        return LongTensor(padded_sentences)
+
+    def tokenize_sentence(self, sentence):
+        return [self.vocab.get(s, self.unk_token_id) for s in self.featurize(sentence)]
+
+    def featurize(self, text):
+        return text.lower().split(' ')
+
+    def build_vocabulary(self, train_data, test_data, qid2text):
+        vocab = set()
+
+        texts = chain(
+            [q.text for q in flatmap(chain(train_data, test_data))],
+            qid2text.values()
+        )
+        for text in texts:
+            tokens = self.featurize(text)
+            for t in tokens:
+                vocab.add(t)
+
+        vocab = [self.UNK_TOKEN, self.PAD_TOKEN] + list(vocab)
+
+        return dict(zip(vocab, range(len(vocab))))
