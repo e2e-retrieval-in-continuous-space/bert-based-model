@@ -2,6 +2,9 @@ import uuid
 import pickle
 from itertools import chain
 from pathlib import Path
+
+from torch import LongTensor
+
 from data_utils import flatmap
 from loggers import getLogger
 
