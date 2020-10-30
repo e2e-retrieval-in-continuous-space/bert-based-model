@@ -1,6 +1,8 @@
 import argparse
 from model_factory import ModelFactory
 from torch import optim
+
+from models.simple_embedding_model import SimpleEmbeddingModel
 from train_utils import fit, collate_fn
 from torch.utils.data import DataLoader
 from data_utils import chunks
@@ -91,7 +93,8 @@ logger.info("Loading Quora dataset...")
 data_loader = QuoraDataUtil(limit=args.limit)
 train_data, test_data, retrieval_data, candidate_ids, qid2text = data_loader.construct_retrieval_task()
 
-model = ModelFactory.get_model(args.model_type, vars(args))
+#model = ModelFactory.get_model(args.model_type, vars(args))
+model = SimpleEmbeddingModel(args.embedding_dim, examples=data_loader.get_examples())
 
 # @TODO: Change to a different optimizer
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
