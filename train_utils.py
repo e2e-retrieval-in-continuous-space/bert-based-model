@@ -185,12 +185,16 @@ def evaluate(
     """
     data_loader = DataLoader(retrieval_data, batch_size=retrieval_batch_size, collate_fn=collate_fn)
     candidate_text = [qid2text[qid] for qid in candidate_ids]
+    candidate_set = set(candidate_ids)
 
     map_score = 0
     for query_ids, actual_id_set in data_loader:
         # query_ids is a list of qids.  e.g. [qid1, qid2, ...]
         # actual_id_set is a list of sets of relevant for the query_ids
         actual_count_set = [len(ids) for ids in actual_id_set]
+
+        for qid in flatmap(actual_id_set):
+            assert qid in candidate_set, "qid {} does not exist in candidate set".format(qid)
 
         batch_query_text = [qid2text[qid] for qid in query_ids]
         predict_id_set = search(model, batch_query_text, candidate_ids, candidate_text, k + 1, pairwise_similarity_func)
