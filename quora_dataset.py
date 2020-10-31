@@ -61,7 +61,7 @@ class QuoraDataUtil:
     def get_text_for_qid(self, qid):
         return self._qid2text.get(qid, None)
 
-    def construct_retrieval_task(self, train_size=139306, retrieval_size=9218, candidate_size=19081, split_fracs=[0.03, 0.97], seed=1):
+    def construct_retrieval_task(self, train_size=139306, retrieval_size=9218, split_fracs=[0.03, 0.97], seed=1):
         """
         Quora dataset is loaded into examples which are then split into test_examples, and train_examples
         They each contain positive and negative examples.
@@ -118,10 +118,6 @@ class QuoraDataUtil:
         if retrieval_size:
             random.shuffle(query2result_list)
             query2result_list = query2result_list[:retrieval_size]
-
-        if candidate_size:
-            random.shuffle(candidate_ids)
-            candidate_ids = candidate_ids[:candidate_size]
 
         return (
             QuoraDataset(train_qid_pairs, self._qid2text),
