@@ -1,6 +1,5 @@
 import itertools
-from collections import Counter
-from typing import Set, Dict
+from typing import Dict
 
 from torch.utils.data import Dataset
 
@@ -49,7 +48,7 @@ class QuoraDataUtil:
             src_filename = cached_path("http://qim.fs.quoracdn.net/quora_duplicate_questions.tsv")
 
         # 404279 examples,  149263 positive
-        examples = list(self.read_examples(src_filename, limit))
+        examples = [e for e in self.read_examples(src_filename) if e.is_duplicate][:limit]
         qid2text = {
             qid: text for qid, text in
                      flatmap([[(e.qid1, e.q1_text), (e.qid2, e.q2_text)] for e in examples])
@@ -63,78 +62,64 @@ class QuoraDataUtil:
     def get_text_for_qid(self, qid):
         return self._qid2text.get(qid, None)
 
-    def construct_retrieval_task(self, train_size=139306, test_size=12206, retrieval_size=9218):
+    def construct_retrieval_task(self, train_size=139306, test_queries_size=9218, candidates_size=19081):
         # use positive examples to form disjoint sets
-        pos_examples = [e for e in self._examples if e.is_duplicate]
-        pos_qids = set(flatmap([(e.qid1, e.qid2) for e in pos_examples]))
+        pos_qids = set(flatmap([(e.qid1, e.qid2) for e in self._examples]))
         uf = UnionFind(pos_qids)
-        for e in pos_examples:
+        for e in self._examples:
             # each positive example is considered an edge
             uf.union(e.qid1, e.qid2)
 
-        #  disjoint_set is a map of set name to its members
+        # disjoint_set is a map of set name to its members
         disjoint_set = defaultdict(list)
         for qid in pos_qids:
             set_name = uf.find(qid)
             disjoint_set[set_name].append(qid)
 
         # construct training pairs
-        set_names = list(disjoint_set.keys())
-        random.shuffle(set_names)
+        items = list(disjoint_set.items())
+        random.shuffle(items)
+        disjoint_set = dict(items)
+
         train_qid_pairs = set()
-        for sn in set_names:
-            dset = disjoint_set[sn]
+        for key in list(disjoint_set.keys()):
+            dset = disjoint_set.pop(key)
             pairs = itertools.combinations(dset, 2)
             train_qid_pairs.update(pairs)
 
             # might go over the target train_size a bit
             if len(train_qid_pairs) >= train_size:
                 break
-
-        # filter out examples whose qids are already in the train_qid_pairs
-        test_examples = []
         train_qids = set(flatmap(train_qid_pairs))
-        for e in self._examples:
-            if not e.is_duplicate:
-                test_examples.append(e)
-            else:
-                if e.qid1 not in train_qids and e.qid2 not in train_qids:
-                    test_examples.append(e)
 
         # build positive test_qid_pairs
         test_qid_pairs = set()
-        random.shuffle(test_examples)
         candidate_ids = set()
         query2result_list = []
-        for e in test_examples:
-            if e.qid1 in candidate_ids or e.qid2 in candidate_ids:
-                continue
+        for set_members in list(disjoint_set.values()):
+            # set members are qids which are relevant to each other
+            # every member can be considered a test query
 
-            if e.is_duplicate:
-                # doesn't matter which of qid1 or qid2 to use here.  they are in the same set
-                set_members = disjoint_set[uf.find(e.qid1)]
-                pairs = list(itertools.combinations(set_members, 2))
-                test_qid_pairs.update(pairs)
+            # Store limited number of queries for the purposes of retrieval (but all relevant results)
+            candidate_ids.update(set_members)
+            for qid in set_members[:1]:
+                result = set_members.copy()
+                # remove query from result
+                result.remove(qid)
+                query2result_list.append((qid, result))
 
-                # set members are qids which are relevant to each other
-                # every member can be considered a test query
-                candidate_ids.update(set_members)
-                for qid in set_members:
-                    result = set_members.copy()
-                    # remove query from result
-                    result.remove(qid)
-                    query2result_list.append((qid, result))
+            # Store all positive for the purposes of loss calculation
+            pairs = list(itertools.combinations(set_members, 2))
+            test_qid_pairs.update(pairs)
 
-            candidate_ids.update([e.qid1, e.qid2])
-            if len(query2result_list) >= retrieval_size:
+            if len(candidate_ids) >= candidates_size and len(test_qid_pairs) >= test_queries_size:
                 break
 
         test_qids = flatmap(test_qid_pairs)
         assert len(train_qids.intersection(test_qids)) == 0, "train and test qids have overlaps"
 
         train_qid_pairs = list(train_qid_pairs)[:train_size]
-        test_qid_pairs = list(test_qid_pairs)[:test_size]
-        query2result_list = query2result_list[:retrieval_size]
+        test_qid_pairs = list(test_qid_pairs)
         return (
             QuoraDataset(train_qid_pairs, self._qid2text),
             QuoraDataset(test_qid_pairs, self._qid2text),
@@ -210,7 +195,7 @@ class QuoraDataUtil:
         )
 
     @staticmethod
-    def read_examples(src_filename, limit=None):
+    def read_examples(src_filename):
         """
         Iterator for the Quora question dataset.
 
@@ -237,8 +222,6 @@ class QuoraDataUtil:
                 fields[-1] = True if fields[-1] == "1" else False
 
                 yield Example(*fields)
-                if limit is not None and i + 1 >= limit:
-                    break
 
 
 if __name__ == "__main__":
