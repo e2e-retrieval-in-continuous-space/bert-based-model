@@ -13,6 +13,7 @@ from loggers import getLogger
 from datetime import datetime
 import os.path
 import time
+import json
 
 from quora_dataset import QuoraDataset, RetrievalDataset
 
@@ -106,16 +107,14 @@ def average_precision_k(actual_count, labels, k):
     return score / actual_count
 
 
-def average_precision_k_sum_for_batch(actual_count_set: List[List[int]],
+def average_precision_k_for_batch(actual_count_set: List[List[int]],
                                       label_set: List[List[bool]],
                                       k):
     """
     Sum of the average precision at k for the given query batch
     """
-    return sum(
-        [average_precision_k(actual_count, labels, k)
+    return [average_precision_k(actual_count, labels, k)
          for actual_count, labels in zip(actual_count_set, label_set)]
-    )
 
 
 def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func):
@@ -129,12 +128,18 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
             Encoded candidates.  Shape (candidate_size, hidden_size)
 
     Returns:
-            A list of lists of indices of top k relevant candidates as measured by the similarity function
+        topk:
+            (batch_size, k) - A list of lists of indices of top k relevant candidates as measured by the similarity function
             [ [idx1, idx2, ...], [idx9, idx10, ...], ... ]
+        topk_similarity:
+            (batch_size, k) - Similiar structure as topk but with similarity score as values
     """
     # Shape: (batch_size, candidate_size)
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
-    return torch.topk(similarity, k).indices.tolist()
+    # (batch_size, k)
+    topk = torch.topk(similarity, k).indices.tolist()
+    topk_similarity = torch.gather(similarity, 1, torch.tensor(topk))
+    return topk, topk_similarity
 
 
 def search(model: nn.Module, batch_query_text, candidate_id, candidate_text, k, pairwise_similarity_func):
@@ -142,11 +147,11 @@ def search(model: nn.Module, batch_query_text, candidate_id, candidate_text, k, 
     encoded_batch_q = model(batch_query_text)
     encoded_candidates = model(candidate_text)
 
-    top_k_predict_indices = top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func)
+    top_k_predict_indices, top_k_similarity = top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_func)
     result = []
     for indices in top_k_predict_indices:
         result.append([candidate_id[i] for i in indices])
-    return result
+    return result, top_k_similarity
 
 
 def get_labels(actual, predict):
@@ -178,7 +183,8 @@ def evaluate(
         retrieval_batch_size,
         k,
         epoch,
-        pairwise_similarity_func):
+        pairwise_similarity_func,
+        save_model_dir=None):
     """
     Returns:
         MAP@K for the given test_data
@@ -188,6 +194,7 @@ def evaluate(
     candidate_set = set(candidate_ids)
 
     map_score = 0
+    eval_records = []
     for query_ids, actual_id_set in data_loader:
         # query_ids is a list of qids.  e.g. [qid1, qid2, ...]
         # actual_id_set is a list of sets of relevant for the query_ids
@@ -197,15 +204,47 @@ def evaluate(
             assert qid in candidate_set, "qid {} does not exist in candidate set".format(qid)
 
         batch_query_text = [qid2text[qid] for qid in query_ids]
-        predict_id_set = search(model, batch_query_text, candidate_ids, candidate_text, k + 1, pairwise_similarity_func)
+        predict_id_set, similarity_set = search(model, batch_query_text, candidate_ids, candidate_text, k + 1, pairwise_similarity_func)
         for i, predictions in enumerate(predict_id_set):
             predict_id_set[i] = [pid for pid in predictions if pid != query_ids[i]][:k]
 
         label_set = [get_labels(actual, predict) for actual, predict in zip(actual_id_set, predict_id_set)]
 
-        map_score += average_precision_k_sum_for_batch(actual_count_set, label_set, k)
+        recalls = [sum(labels)/actual_count for labels, actual_count in zip(label_set, actual_count_set)]
+
+        avg_precision_k = average_precision_k_for_batch(actual_count_set, label_set, k)
+        map_score += sum(avg_precision_k)
+
+        records = create_eval_records(epoch, query_ids, actual_id_set, predict_id_set, similarity_set, label_set, recalls, avg_precision_k)
+        eval_records.extend(records)
+
+    if save_model_dir:
+        file_name = "{}.epoch{}.eval.{}.json".format(model.__class__.__name__,
+                                                     epoch,
+                                                  datetime.now().strftime("%Y-%m-%d"))
+        full_file_name = os.path.join(save_model_dir, file_name)
+        logger.info("Saving evaluation result to %s", full_file_name)
+        with open(full_file_name, "w") as f:
+            f.write(json.dumps(eval_records))
 
     return map_score / len(retrieval_data)
+
+
+def create_eval_records(epoch, query_ids, actual_id_set, predict_id_set, similarity_set, label_set, recalls, avg_precision_k):
+    n = len(query_ids)
+    result = []
+    for i in range(n):
+        result.append({
+            "epoch": epoch,
+            "query_id": query_ids[i],
+            "actual_id": actual_id_set[i],
+            "predict_id": predict_id_set[i],
+            "similarity": similarity_set[i].tolist(),
+            "predict_labels": label_set[i],
+            "recalls": recalls[i],
+            "avg_precision_k": avg_precision_k[i]
+        })
+    return result
 
 
 def fit(epochs,
@@ -267,7 +306,15 @@ def fit(epochs,
             )
 
             logger.debug("Evaluating...")
-            map_score = evaluate(model, retrieval_data, candidate_ids, qid2text, retrieval_batch_size, top_k, epoch, pairwise_similarity_func)
+            map_score = evaluate(model,
+                                 retrieval_data,
+                                 candidate_ids,
+                                 qid2text,
+                                 retrieval_batch_size,
+                                 top_k,
+                                 epoch,
+                                 pairwise_similarity_func,
+                                 save_model_dir)
             logger.info("Epoch {}: test data MAP score is {}".format(epoch, map_score))
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
