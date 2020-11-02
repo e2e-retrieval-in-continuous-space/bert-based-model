@@ -1,7 +1,7 @@
 from collections import defaultdict, namedtuple
 from itertools import chain
 import random
-from typing import List, Tuple
+from typing import List, Tuple, Set
 import numpy as np
 
 Example = namedtuple("Example",
@@ -10,6 +10,34 @@ Example = namedtuple("Example",
 Question = namedtuple("Question",
                       ["qid", "text"])
 
+
+class UnionFind:
+    def __init__(self, all_qids: Set[str]):
+        self.rank = {qid: 1 for qid in all_qids}
+        self.parent = {qid: qid for qid in all_qids}
+
+    def find(self, qid):
+        if self.parent[qid] != qid:
+            self.parent[qid] = self.find(self.parent[qid])
+        return self.parent[qid]
+
+    def union(self, qid1, qid2):
+        # find set representative for qid1
+        p1 = self.find(qid1)
+        # find set representative for qid2
+        p2 = self.find(qid2)
+
+        # qid1 and qid2 are already in the same set
+        if p1 == p2:
+            return
+
+        if self.rank[p1] < self.rank[p2]:
+            self.parent[p1] = p2
+        elif self.rank[p1] > self.rank[p2]:
+            self.parent[p2] = p1
+        else:
+            self.parent[p2] = p1
+            self.rank[p1] += 1
 
 def generate_all_examples(qid_examples: List[Tuple[str, str]]):
     """

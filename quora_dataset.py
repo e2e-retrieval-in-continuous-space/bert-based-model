@@ -1,4 +1,5 @@
-from typing import Set, Dict
+import itertools
+from typing import Dict
 
 from torch.utils.data import Dataset
 
@@ -47,7 +48,7 @@ class QuoraDataUtil:
             src_filename = cached_path("http://qim.fs.quoracdn.net/quora_duplicate_questions.tsv")
 
         # 404279 examples,  149263 positive
-        examples = list(self.read_examples(src_filename, limit))
+        examples = [e for e in self.read_examples(src_filename) if e.is_duplicate][:limit]
         qid2text = {
             qid: text for qid, text in
                      flatmap([[(e.qid1, e.q1_text), (e.qid2, e.q2_text)] for e in examples])
@@ -61,7 +62,73 @@ class QuoraDataUtil:
     def get_text_for_qid(self, qid):
         return self._qid2text.get(qid, None)
 
-    def construct_retrieval_task(self, train_size=139306, retrieval_size=9218, split_fracs=[0.03, 0.97], seed=1):
+    def construct_retrieval_task(self, train_size=139306, test_queries_size=9218, candidates_size=19081):
+        # use positive examples to form disjoint sets
+        pos_qids = set(flatmap([(e.qid1, e.qid2) for e in self._examples]))
+        uf = UnionFind(pos_qids)
+        for e in self._examples:
+            # each positive example is considered an edge
+            uf.union(e.qid1, e.qid2)
+
+        # disjoint_set is a map of set name to its members
+        disjoint_set = defaultdict(list)
+        for qid in pos_qids:
+            set_name = uf.find(qid)
+            disjoint_set[set_name].append(qid)
+
+        # construct training pairs
+        items = list(disjoint_set.items())
+        random.shuffle(items)
+        disjoint_set = dict(items)
+
+        train_qid_pairs = set()
+        for key in list(disjoint_set.keys()):
+            dset = disjoint_set.pop(key)
+            pairs = itertools.combinations(dset, 2)
+            train_qid_pairs.update(pairs)
+
+            # might go over the target train_size a bit
+            if len(train_qid_pairs) >= train_size:
+                break
+        train_qids = set(flatmap(train_qid_pairs))
+
+        # build positive test_qid_pairs
+        test_qid_pairs = set()
+        candidate_ids = set()
+        query2result_list = []
+        for set_members in list(disjoint_set.values()):
+            # set members are qids which are relevant to each other
+            # every member can be considered a test query
+
+            # Store limited number of queries for the purposes of retrieval (but all relevant results)
+            candidate_ids.update(set_members)
+            for qid in set_members[:1]:
+                result = set_members.copy()
+                # remove query from result
+                result.remove(qid)
+                query2result_list.append((qid, result))
+
+            # Store all positive for the purposes of loss calculation
+            pairs = list(itertools.combinations(set_members, 2))
+            test_qid_pairs.update(pairs)
+
+            if len(candidate_ids) >= candidates_size and len(test_qid_pairs) >= test_queries_size:
+                break
+
+        test_qids = flatmap(test_qid_pairs)
+        assert len(train_qids.intersection(test_qids)) == 0, "train and test qids have overlaps"
+
+        train_qid_pairs = list(train_qid_pairs)[:train_size]
+        test_qid_pairs = list(test_qid_pairs)
+        return (
+            QuoraDataset(train_qid_pairs, self._qid2text),
+            QuoraDataset(test_qid_pairs, self._qid2text),
+            RetrievalDataset(query2result_list),
+            list(candidate_ids),
+            self._qid2text
+        )
+
+    def construct_retrieval_task_old(self, train_size=139306, retrieval_size=9218, split_fracs=[0.03, 0.97], seed=1):
         """
         Quora dataset is loaded into examples which are then split into test_examples, and train_examples
         They each contain positive and negative examples.
@@ -128,7 +195,7 @@ class QuoraDataUtil:
         )
 
     @staticmethod
-    def read_examples(src_filename, limit=None):
+    def read_examples(src_filename):
         """
         Iterator for the Quora question dataset.
 
@@ -155,13 +222,11 @@ class QuoraDataUtil:
                 fields[-1] = True if fields[-1] == "1" else False
 
                 yield Example(*fields)
-                if limit is not None and i + 1 >= limit:
-                    break
 
 
 if __name__ == "__main__":
     quora = QuoraDataUtil("quora_duplicate_questions.tsv")
-    pass
+    quora.construct_retrieval_task()
 
 
 
