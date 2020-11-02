@@ -138,7 +138,13 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
     # (batch_size, k)
     topk = torch.topk(similarity, k).indices.tolist()
-    topk_similarity = torch.gather(similarity, 1, torch.tensor(topk))
+
+    # TODO: cleanup needed.  This is needed when training on GPU to make sure
+    # select_index would be the same devie as similarity tensor.
+    # Otherwise, torch will throw exception
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    select_index = torch.tensor(topk).to(device)
+    topk_similarity = torch.gather(similarity, 1, select_index)
     return topk, topk_similarity
 
 
@@ -233,6 +239,8 @@ def evaluate(
 def create_eval_records(epoch, query_ids, actual_id_set, predict_id_set, similarity_set, label_set, recalls, avg_precision_k):
     n = len(query_ids)
     result = []
+    # replace sets with lists to avoid JSON serialization error
+    actual_id_set = [list(ids) for ids in actual_id_set]
     for i in range(n):
         result.append({
             "epoch": epoch,
