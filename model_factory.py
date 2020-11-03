@@ -1,3 +1,4 @@
+from models.bert_words_embeddings_model import BERTWordsEmbeddingsModel
 from models.simple_embedding_model import SimpleEmbeddingModel
 from models.bert_feature_extractor_model import BERTAsFeatureExtractorEncoder, BERTVersion
 
@@ -19,6 +20,13 @@ class ModelFactory:
     @staticmethod
     def bert_avg_layer_token_feature_extractor(train_config):
         return BERTAsFeatureExtractorEncoder(
+            BERTVersion.BASE_UNCASED,
+            hidden_size=train_config["embedding_dim"]
+        )
+
+    @staticmethod
+    def bert_words_embeddings_model(train_config):
+        return BERTWordsEmbeddingsModel(
             BERTVersion.BASE_UNCASED,
             hidden_size=train_config["embedding_dim"]
         )

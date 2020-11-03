@@ -50,10 +50,10 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.cache = EmbeddingsCache(bert_version.value)
 
     def forward(self, documents: List[str]) -> Tensor:
-        embeddings = self.compute_embeddings(documents)
+        embeddings = self.compute_sentence_embeddings(documents)
         return self.linear(embeddings)
 
-    def compute_embeddings(self, documents: List[str]) -> Tensor:
+    def compute_sentence_embeddings(self, documents: List[str]) -> Tensor:
         """
         Encodes a list of strings (documents) into vectors.
 
