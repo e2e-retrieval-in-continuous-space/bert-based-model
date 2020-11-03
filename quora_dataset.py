@@ -48,7 +48,9 @@ class QuoraDataUtil:
             src_filename = cached_path("http://qim.fs.quoracdn.net/quora_duplicate_questions.tsv")
 
         # 404279 examples,  149263 positive
-        examples = [e for e in self.read_examples(src_filename) if e.is_duplicate][:limit]
+        examples = [e for e in self.read_examples(src_filename)]
+        if limit:
+            examples = examples[:limit]
         qid2text = {
             qid: text for qid, text in
                      flatmap([[(e.qid1, e.q1_text), (e.qid2, e.q2_text)] for e in examples])
@@ -64,9 +66,10 @@ class QuoraDataUtil:
 
     def construct_retrieval_task(self, train_size=139306, test_queries_size=9218, candidates_size=19081):
         # use positive examples to form disjoint sets
-        pos_qids = set(flatmap([(e.qid1, e.qid2) for e in self._examples]))
+        pos_examples = [e for e in self._examples if e.is_duplicate]
+        pos_qids = set(flatmap([(e.qid1, e.qid2) for e in pos_examples]))
         uf = UnionFind(pos_qids)
-        for e in self._examples:
+        for e in pos_examples:
             # each positive example is considered an edge
             uf.union(e.qid1, e.qid2)
 
