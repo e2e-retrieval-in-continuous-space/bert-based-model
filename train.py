@@ -127,7 +127,7 @@ if args.command == "precompute-embeddings":
         for i, (q1_batch, q2_batch) in enumerate(loader):
             logger.debug("Chunk %d out of %d", i, iterations)
             batch_query_text = [q.text for q in q1_batch] + [q.text for q in q2_batch]
-            model.compute_embeddings(batch_query_text)
+            model.compute_sentence_embeddings(batch_query_text)
 
     model.cache.save()
 else:
