@@ -1,3 +1,4 @@
+from models.bert_words_embeddings_model import BERTWordsEmbeddingsModel
 from models.simple_embedding_model import SimpleEmbeddingModel
 from models.bert_feature_extractor_model import BERTAsFeatureExtractorEncoder, BERTVersion, reducer_all_layers, \
     reducer_last_layer, reducer_2nd_last_layer, reducer_last_4_layers, reducer_try_vertical_tokens
@@ -68,6 +69,13 @@ class ModelFactory:
             BERTVersion.LARGE_UNCASED,
             hidden_size=train_config["embedding_dim"],
             bert_reducer=reducer
+        )
+
+    @staticmethod
+    def bert_words_embeddings_model(train_config):
+        return BERTWordsEmbeddingsModel(
+            BERTVersion.BASE_UNCASED,
+            hidden_size=train_config["embedding_dim"]
         )
 
     @staticmethod
