@@ -115,7 +115,7 @@ if args.command == "precompute-embeddings":
     candidates_chunks = list(chunks(candidate_text, args.batch_size))
     for i, chunk in enumerate(candidates_chunks):
         logger.debug("Chunk %d out of %d", i, len(candidates_chunks))
-        model.compute_embeddings(chunk)
+        model.compute_sentence_embeddings(chunk)
 
     half_batch = int(args.batch_size/2)
     train_loader = DataLoader(train_data, batch_size=half_batch, collate_fn=collate_fn)
