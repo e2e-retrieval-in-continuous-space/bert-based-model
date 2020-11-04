@@ -77,7 +77,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.hidden_size = hidden_size or self.embeddings_dim * 2
 
         self.linear = nn.Linear(self.embeddings_dim, self.hidden_size).to(self.device)
-        self.cache = EmbeddingsCache(bert_version.value)
+        self.cache = EmbeddingsCache('{0}-{1}'.format(bert_version.value, bert_reducer.__name__))
 
     def forward(self, documents: List[str]) -> Tensor:
         embeddings = self.compute_sentence_embeddings(documents)
