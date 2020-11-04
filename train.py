@@ -115,7 +115,7 @@ if args.command == "precompute-embeddings":
     candidates_chunks = list(chunks(candidate_text, args.batch_size))
     for i, chunk in enumerate(candidates_chunks):
         logger.debug("Chunk %d out of %d", i, len(candidates_chunks))
-        model.compute_embeddings(chunk)
+        model.compute_sentence_embeddings(chunk)
 
     half_batch = int(args.batch_size/2)
     train_loader = DataLoader(train_data, batch_size=half_batch, collate_fn=collate_fn)
@@ -127,7 +127,7 @@ if args.command == "precompute-embeddings":
         for i, (q1_batch, q2_batch) in enumerate(loader):
             logger.debug("Chunk %d out of %d", i, iterations)
             batch_query_text = [q.text for q in q1_batch] + [q.text for q in q2_batch]
-            model.compute_embeddings(batch_query_text)
+            model.compute_sentence_embeddings(batch_query_text)
 
     model.cache.save()
 else:
