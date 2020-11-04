@@ -31,11 +31,11 @@ def reducer_all_layers(tensor: Tensor) -> Tensor:
 
 
 def reducer_last_layer(tensor: Tensor) -> Tensor:
-    return average_layers(average_tokens(tensor[:, -1, :, :]))
+    return average_layers(average_tokens(tensor[:, -1:, :, :]))
 
 
 def reducer_2nd_last_layer(tensor: Tensor) -> Tensor:
-    return average_layers(average_tokens(tensor[:, -2, :, :]))
+    return average_layers(average_tokens(tensor[:, -2:-1, :, :]))
 
 
 def reducer_last_4_layers(tensor: Tensor) -> Tensor:
