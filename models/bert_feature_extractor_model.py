@@ -14,14 +14,44 @@ class BERTVersion(enum.Enum):
     Enum representing supported BERT versions
     """
     BASE_UNCASED = 'bert-base-uncased'
+    LARGE_UNCASED = 'bert-large-uncased'
 
 
-def average_layers_and_tokens(tensor: Tensor) -> Tensor:
-    return average_axis(0, average_axis(len(tensor.shape) - 2, tensor))
+def reducer_try_vertical_tokens(tensor: Tensor) -> Tensor:
+    r = average_layers(average_axis(-1, tensor))
+    shape = list(r.shape)
+    shape[-1] = 768
+    target = torch.zeros(*shape)
+    target[:, :r.shape[-1]] = r
+    return target
+
+
+def reducer_all_layers(tensor: Tensor) -> Tensor:
+    return average_layers(average_tokens(tensor))
+
+
+def reducer_last_layer(tensor: Tensor) -> Tensor:
+    return average_layers(average_tokens(tensor[:, -1:, :, :]))
+
+
+def reducer_2nd_last_layer(tensor: Tensor) -> Tensor:
+    return average_layers(average_tokens(tensor[:, -2:-1, :, :]))
+
+
+def reducer_last_4_layers(tensor: Tensor) -> Tensor:
+    return average_layers(average_tokens(tensor[:, -4:, :, :]))
+
+
+def average_layers(tensor: Tensor) -> Tensor:
+    return torch.mean(tensor, 1)
+
+
+def average_tokens(tensor: Tensor) -> Tensor:
+    return torch.mean(tensor, -2)
 
 
 def average_axis(axis: int, tensor: Tensor) -> Tensor:
-    return tensor.sum(axis) / tensor.shape[axis]
+    return torch.mean(tensor, axis)
 
 
 class BERTAsFeatureExtractorEncoder(nn.Module):
@@ -29,7 +59,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             self,
             bert_version: BERTVersion,
             hidden_size: int = None,
-            bert_reducer: Callable[[Tensor], Tensor] = average_layers_and_tokens,
+            bert_reducer: Callable[[Tensor], Tensor] = reducer_all_layers,
             device=None
     ):
         super().__init__()
@@ -47,7 +77,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.hidden_size = hidden_size or self.embeddings_dim * 2
 
         self.linear = nn.Linear(self.embeddings_dim, self.hidden_size).to(self.device)
-        self.cache = EmbeddingsCache(bert_version.value)
+        self.cache = EmbeddingsCache('{0}-{1}'.format(bert_version.value, bert_reducer.__name__))
 
     def forward(self, documents: List[str]) -> Tensor:
         embeddings = self.compute_sentence_embeddings(documents)
@@ -101,7 +131,10 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             for chunk in chunks(documents, 1000):
                 inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True).to(self.device)
                 hidden_states = self.bert(**inputs).hidden_states
-                encoded_chunks.append(torch.stack([s.to('cpu') for s in hidden_states]))
+                stacked = torch.stack([s.to('cpu') for s in hidden_states]).transpose(0, 1)
+                coords = (inputs.input_ids == 0).nonzero()  # irrelevant_tokens_coords
+                stacked[coords[:, 0], :, coords[:, 1], :] = 0
+                encoded_chunks.append(stacked)
             return torch.cat(encoded_chunks)
 
 
