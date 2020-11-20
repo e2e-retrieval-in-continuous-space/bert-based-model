@@ -5,6 +5,7 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from data_utils import flatmap, Question
 import numpy as np
@@ -255,6 +256,13 @@ def create_eval_records(epoch, query_ids, actual_id_set, predict_id_set, similar
     return result
 
 
+class DummyWriter():
+    def __init__(self): pass
+    def add_scalar(self, *args, **kwargs): pass
+    def flush(self): pass
+    def close(self): pass
+
+
 def fit(epochs,
         model: nn.Module,
         opt: optim.Optimizer,
@@ -292,6 +300,7 @@ def fit(epochs,
     """
     train_loader = DataLoader(train_data, batch_size=batch_size, collate_fn=collate_fn)
     test_loader = DataLoader(test_data, batch_size=batch_size, collate_fn=collate_fn)
+    writer = SummaryWriter(save_model_dir, flush_secs=30) if save_model_dir else DummyWriter()
 
     for epoch in range(epochs):
         logger.debug("Running train...")
@@ -303,15 +312,19 @@ def fit(epochs,
             loss_val, batch_count = loss_batch(model, loss_func, q1_batch, q2_batch, pairwise_similarity_func, opt)
             duration = time.perf_counter() - start_time
             logger.debug("Finished loss_batch %s at %.2f example/second, loss=%f", i, batch_count/duration, loss_val)
+            writer.add_scalar("Loss/train", loss_val, epoch * len(train_loader) + i)
 
         logger.debug("Running model.eval()...")
         model.eval()
         with torch.no_grad():
             logger.debug("Computing losses per batch on evaluation data...")
-            losses, nums = zip(
-                *[loss_batch(model, loss_func, xb, yb, pairwise_similarity_func)
-                  for xb, yb in test_loader]
-            )
+            losses = []
+            nums = []
+            for i, (xb, yb) in enumerate(test_loader):
+                loss_val, batch_count = loss_batch(model, loss_func, xb, yb, pairwise_similarity_func)
+                losses.append(loss_val)
+                nums.append(batch_count)
+                writer.add_scalar("Loss/test", loss_val, epoch * len(test_loader) + i)
 
             logger.debug("Evaluating...")
             map_score = evaluate(model,
@@ -329,6 +342,9 @@ def fit(epochs,
         logger.info("Epoch %d: val_loss=%f", epoch, val_loss)
 
     if save_model_dir:
+        writer.flush()
+        writer.close()
+
         file_name = "{}.{}.state_dict".format(model.__class__.__name__, datetime.now().strftime("%Y-%m-%d"))
         full_file_name = os.path.join(save_model_dir, file_name)
         logger.info("Saving model to %s", full_file_name)

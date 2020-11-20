@@ -21,7 +21,10 @@ default_train_config = {
     "top_k": 100,
     "batch_size": 1000,
     "retrieval_batch_size": 1000,
-    "epoch_num": 15
+    "epoch_num": 15,
+    "train_size": 139306,
+    "test_queries_size": 9218,
+    "candidates_size": 19081
 }
 
 parser = argparse.ArgumentParser(description='Training a model with Quora dataset')
@@ -76,6 +79,21 @@ parser.add_argument('--save_model_dir',
                     type=str,
                     help='Directory to save model parameters after training')
 
+parser.add_argument('--train_size',
+                    type=int,
+                    default=default_train_config['train_size'],
+                    help='Number of question pairs for training')
+
+parser.add_argument('--test_queries_size',
+                    type=int,
+                    default=default_train_config['test_queries_size'],
+                    help='Number of test queries')
+
+parser.add_argument('--candidates_size',
+                    type=int,
+                    default=default_train_config['candidates_size'],
+                    help='Number of questions in candidates')
+
 args = parser.parse_args()
 
 # If the save_model_dir doesn't exist or not writable, fail now
@@ -110,7 +128,11 @@ elif args.command == "precompute-word-embeddings":
         model.compute_word_embeddings_batch(chunk)
     embeddings = model.tokens_embeddings_to_vocab_embeddings()
 else:
-    train_data, test_data, retrieval_data, candidate_ids, qid2text = data_loader.construct_retrieval_task()
+    train_data, test_data, retrieval_data, candidate_ids, qid2text = data_loader.construct_retrieval_task(
+        train_size=args.train_size,
+        test_queries_size=args.test_queries_size,
+        candidates_size=args.candidates_size
+    )
 
     # @TODO: Change to a different optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
