@@ -54,7 +54,7 @@ def average_axis(axis: int, tensor: Tensor) -> Tensor:
     return torch.mean(tensor, axis)
 
 def check_memory(s):
-    print('% memory: %.1f' % (s, torch.cuda.memory_allocated() // 1024 ** 2))
+    logger.debug('%s memory: %.1f', s, torch.cuda.memory_allocated() // 1024 ** 2)
 
 class BERTAsFeatureExtractorEncoder(nn.Module):
     def __init__(
@@ -62,7 +62,8 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
             bert_version: BERTVersion,
             hidden_size: int = None,
             bert_reducer: Callable[[Tensor], Tensor] = reducer_all_layers,
-            device=None
+            device=None,
+            bert_chunk_size=100
     ):
         super().__init__()
         self.device = device
@@ -77,6 +78,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         self.bert.to(self.device)
         self.embeddings_dim = self.config.hidden_size
         self.hidden_size = hidden_size or self.embeddings_dim * 2
+        self.bert_chunk_size = bert_chunk_size
 
         self.linear = nn.Linear(self.embeddings_dim, self.hidden_size).to(self.device)
         self.cache = EmbeddingsCache('{0}-{1}'.format(bert_version.value, bert_reducer.__name__))
@@ -87,7 +89,7 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
 
     def compute_sentence_embeddings(self, documents: List[str], to_device=True) -> Tensor:
         result = []
-        for chunk in chunks(documents, 100):
+        for chunk in chunks(documents, self.bert_chunk_size):
             embeddings = self._internal_compute_sentence_embeddings(chunk, to_device)
             result.append(embeddings)
         return torch.cat(result)
