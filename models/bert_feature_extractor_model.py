@@ -53,6 +53,8 @@ def average_tokens(tensor: Tensor) -> Tensor:
 def average_axis(axis: int, tensor: Tensor) -> Tensor:
     return torch.mean(tensor, axis)
 
+def check_memory(s):
+    print('% memory: %.1f' % (s, torch.cuda.memory_allocated() // 1024 ** 2))
 
 class BERTAsFeatureExtractorEncoder(nn.Module):
     def __init__(
@@ -83,11 +85,21 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         embeddings = self.compute_sentence_embeddings(documents)
         return self.linear(embeddings)
 
-    def compute_sentence_embeddings(self, documents: List[str]) -> Tensor:
+    def compute_sentence_embeddings(self, documents: List[str], to_device=True) -> Tensor:
+        result = []
+        for chunk in chunks(documents, 100):
+            embeddings = self._internal_compute_sentence_embeddings(chunk, to_device)
+            result.append(embeddings)
+        return torch.cat(result)
+
+    def _internal_compute_sentence_embeddings(self, documents: List[str], to_device=True) -> Tensor:
         """
         Encodes a list of strings (documents) into vectors.
 
         Caches results between runs.
+
+        Returns:
+            Tensor (batch_size, embedding_size)
 
         >>> m = BERTAsFeatureExtractorEncoder(BERTVersion.BASE_UNCASED)
         >>> out = m.compute_embeddings(["I like ice cream."])
@@ -114,7 +126,9 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         nb_misses = len(misses)
         if nb_misses:
             logger.debug("Computing BERT embeddings for %d cache misses (%d hits)", nb_misses, len(results) - nb_misses)
-            embeddings = self.bert_reducer(self._run_bert(misses))
+            embeddings = self._run_bert(misses)
+            embeddings = self.bert_reducer(embeddings)
+
             idx = 0
             for i, doc in enumerate(results):
                 if doc is None:
@@ -126,16 +140,21 @@ class BERTAsFeatureExtractorEncoder(nn.Module):
         return retval
 
     def _run_bert(self, documents):
+        """
+        Args:
+            documents:
+                List of sentences
+        Returns:
+            Tensor with shape (batch_size, num_layers, max_sentence_len, embedding_size)
+        """
         with torch.no_grad():
-            encoded_chunks = []
-            for chunk in chunks(documents, 1000):
-                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True).to(self.device)
-                hidden_states = self.bert(**inputs).hidden_states
-                stacked = torch.stack([s.to('cpu') for s in hidden_states]).transpose(0, 1)
-                coords = (inputs.input_ids == 0).nonzero()  # irrelevant_tokens_coords
-                stacked[coords[:, 0], :, coords[:, 1], :] = 0
-                encoded_chunks.append(stacked)
-            return torch.cat(encoded_chunks)
+            inputs = self.tokenizer(documents, return_tensors="pt", padding=True, truncation=True).to(self.device)
+            hidden_states = self.bert(**inputs).hidden_states
+            stacked = torch.stack([s.to('cpu') for s in hidden_states]).transpose(0, 1)
+            coords = (inputs.input_ids == 0).nonzero(as_tuple=False)  # irrelevant_tokens_coords
+            stacked[coords[:, 0], :, coords[:, 1], :] = 0
+            return stacked
+
 
 
 def chunks(lst, n):
