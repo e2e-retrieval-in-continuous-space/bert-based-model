@@ -1,3 +1,4 @@
+from models.bert_fine_tuning_model import BERTFineTuningModel
 from models.bert_words_embeddings_model import BERTWordsEmbeddingsModel
 from models.simple_embedding_model import SimpleEmbeddingModel
 from models.bert_feature_extractor_model import BERTAsFeatureExtractorEncoder, BERTVersion, reducer_all_layers, \
@@ -36,6 +37,10 @@ class ModelFactory:
         return ModelFactory._bert_base(train_config, reducer_2nd_last_layer)
 
     @staticmethod
+    def fine_tuning_last_4_layers(train_config):
+        return ModelFactory._bert_fine_tuning(train_config, reducer_last_4_layers)
+
+    @staticmethod
     def bert_base_last_4_layers(train_config):
         return ModelFactory._bert_base(train_config, reducer_last_4_layers)
 
@@ -54,6 +59,14 @@ class ModelFactory:
     @staticmethod
     def bert_large_last_4_layers(train_config):
         return ModelFactory._bert_large(train_config, reducer_last_4_layers)
+
+    @staticmethod
+    def _bert_fine_tuning(train_config, reducer):
+        return BERTFineTuningModel(
+            BERTVersion.BASE_UNCASED,
+            hidden_size=train_config["embedding_dim"],
+            bert_reducer=reducer
+        )
 
     @staticmethod
     def _bert_base(train_config, reducer):
