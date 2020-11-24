@@ -10,4 +10,4 @@ torch==1.6.0
 torchvision==0.7.0
 tqdm==4.50.2
 transformers==3.4.0
-tensorboard=2.3.0
+tensorboard==2.3.0
