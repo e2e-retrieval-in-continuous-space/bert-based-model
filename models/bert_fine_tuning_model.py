@@ -47,7 +47,7 @@ class BERTFineTuningModel(nn.Module):
         """
         inputs = self.tokenizer(documents, return_tensors="pt", padding=True, truncation=True).to(self.device)
         hidden_states = self.bert(**inputs).hidden_states
-        stacked = torch.stack([s.to('cpu') for s in hidden_states]).transpose(0, 1)
+        stacked = torch.stack(hidden_states).transpose(0, 1)
         coords = (inputs.input_ids == 0).nonzero(as_tuple=False)  # irrelevant_tokens_coords
         stacked[coords[:, 0], :, coords[:, 1], :] = 0
         return stacked
