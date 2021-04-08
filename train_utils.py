@@ -1,7 +1,6 @@
 from math import ceil
 
 import torch
-import tensorflow as tf
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
@@ -37,10 +36,11 @@ def pairwise_cosine_similarity(q1_batch_embedding, q2_batch_embedding):
     Returns:
          all pairs simliarity matrix (batch_size, batch_size)
     """
-    normalize_a = tf.nn.l2_normalize(q1_batch_embedding, 1)
-    normalize_b = tf.nn.l2_normalize(q2_batch_embedding, 1)
-    distance = 1 - tf.matmul(normalize_a, normalize_b, transpose_b=True)
-    return distance
+    q1_norm = F.normalize(q1_batch_embedding, dim=1, p=2)
+    q2_norm = F.normalize(q2_batch_embedding, dim=1, p=2)
+    pairiwse_l2_dist = torch.cdist(q1_norm, q2_norm, p=2)
+    squared = torch.square(pairiwse_l2_dist)
+    return 1 - 0.5 * squared
 
 
 def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, pairwise_similarity_func):
@@ -63,21 +63,23 @@ def in_batch_sampled_softmax(q1_batch_embedding, q2_batch_embedding, pairwise_si
     tensor(0.4741)
     """
     similarity_matrix = pairwise_similarity_func(q1_batch_embedding, q2_batch_embedding)
-    neg_log_softmax = tf.math.negative(tf.nn.log_softmax(similarity_matrix, axis=1))
-    loss_terms = tf.linalg.diag(neg_log_softmax, 0)
-    return tf.math.reduce_mean(loss_terms)
+    neg_log_softmax = torch.neg((F.log_softmax(similarity_matrix, dim=1)))
+    loss_terms = torch.diagonal(neg_log_softmax, 0)
+    return torch.mean(loss_terms)
 
 
-def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func, minimize=None):
+def loss_batch(model: nn.Module, loss_func, q1_batch, q2_batch, similarity_func, opt=None):
     q1_batch_text = [q.text for q in q1_batch]
     q2_batch_text = [q.text for q in q2_batch]
     q1_batch_encoded = model(q1_batch_text)
     q2_batch_encoded = model(q2_batch_text)
     loss = loss_func(q1_batch_encoded, q2_batch_encoded, similarity_func)
-    if minimize is not None:
-        minimize(loss)
+    if opt is not None:
+        loss.backward()
+        opt.step()
+        opt.zero_grad()
 
-    return loss.numpy()[0], len(q1_batch)
+    return loss.item(), len(q1_batch)
 
 
 def average_precision_k(actual_count, labels, k):
@@ -136,14 +138,14 @@ def top_candidates(encoded_batch_q, encoded_candidates, k, pairwise_similarity_f
     # Shape: (batch_size, candidate_size)
     similarity = pairwise_similarity_func(encoded_batch_q, encoded_candidates)
     # (batch_size, k)
-    topk = tf.math.top_k(similarity, k=k).indices.tolist()
+    topk = torch.topk(similarity, k).indices.tolist()
 
     # TODO: cleanup needed.  This is needed when training on GPU to make sure
     # select_index would be the same devie as similarity tensor.
     # Otherwise, torch will throw exception
-    with tf.device('/CPU:0'):
-        select_index = tf.Tensor(topk)
-    topk_similarity = tf.gather(similarity, 1, select_index)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    select_index = torch.tensor(topk).to(device)
+    topk_similarity = torch.gather(similarity, 1, select_index)
     return topk, topk_similarity
 
 
