@@ -35,7 +35,7 @@ class ModelFactory:
     @staticmethod
     def fine_tuning_distilbert_base_last_layers(train_config):
         return BERTAsFeatureExtractorEncoder(
-            'distilbert-base-uncased',
+            BERTVersion.DISTILBERT_BASE_UNCASED,
             hidden_size=train_config["embedding_dim"],
             bert_reducer=reducer_last_layer
         )

@@ -15,6 +15,7 @@ class BERTVersion(enum.Enum):
     """
     BASE_UNCASED = 'bert-base-uncased'
     LARGE_UNCASED = 'bert-large-uncased'
+    DISTILBERT_BASE_UNCASED = 'distilbert-base-uncased'
 
 
 def reducer_try_vertical_tokens(tensor: Tensor) -> Tensor:
